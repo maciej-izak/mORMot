@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CONFIG>
+  <Package Version="4">
+    <PathDelim Value="\"/>
+    <Name Value="mORMot_DB"/>
+    <Type Value="RunAndDesignTime"/>
+    <CompilerOptions>
+      <Version Value="11"/>
+      <PathDelim Value="\"/>
+      <SearchPaths>
+        <IncludeFiles Value=".."/>
+        <OtherUnitFiles Value="..\SQLite3;..;..\SynDBDataset"/>
+        <UnitOutputDirectory Value="lib\$(TargetCPU)-$(TargetOS)"/>
+      </SearchPaths>
+    </CompilerOptions>
+    <Files Count="8">
+      <Item1>
+        <Filename Value="..\SQLite3\mORMotDB.pas"/>
+        <UnitName Value="mORMotDB"/>
+      </Item1>
+      <Item2>
+        <Filename Value="..\SQLite3\mORMotMongoDB.pas"/>
+        <UnitName Value="mORMotMongoDB"/>
+      </Item2>
+      <Item3>
+        <Filename Value="..\SynDB.pas"/>
+        <UnitName Value="SynDB"/>
+      </Item3>
+      <Item4>
+        <Filename Value="..\SynDBODBC.pas"/>
+        <UnitName Value="SynDBODBC"/>
+      </Item4>
+      <Item5>
+        <Filename Value="..\SynDBOracle.pas"/>
+        <UnitName Value="SynDBOracle"/>
+      </Item5>
+      <Item6>
+        <Filename Value="..\SynDBRemote.pas"/>
+        <UnitName Value="SynDBRemote"/>
+      </Item6>
+      <Item7>
+        <Filename Value="..\SynDBSQLite3.pas"/>
+        <UnitName Value="SynDBSQLite3"/>
+      </Item7>
+      <Item8>
+        <Filename Value="..\SynMongoDB.pas"/>
+        <UnitName Value="SynMongoDB"/>
+      </Item8>
+    </Files>
+    <RequiredPkgs Count="1">
+      <Item1>
+        <PackageName Value="mORMot_SQLite3"/>
+      </Item1>
+    </RequiredPkgs>
+    <UsageOptions>
+      <UnitPath Value="$(PkgOutDir)"/>
+    </UsageOptions>
+    <PublishOptions>
+      <Version Value="2"/>
+    </PublishOptions>
+  </Package>
+</CONFIG>
