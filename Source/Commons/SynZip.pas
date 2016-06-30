@@ -158,7 +158,7 @@ unit SynZip;
 
 }
 
-{$I Synopse.inc} // define HASINLINE USETYPEINFO CPU32 CPU64
+{$I mORMot_Commons.inc} // define HASINLINE USETYPEINFO CPU32 CPU64
 
 {$ifdef FPC}
   {$define USEZLIB}

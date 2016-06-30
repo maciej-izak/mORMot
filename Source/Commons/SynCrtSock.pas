@@ -216,7 +216,7 @@ unit SynCrtSock;
 
 }
 
-{$I Synopse.inc} // define HASINLINE USETYPEINFO CPU32 CPU64 OWNNORMTOUPPER
+{$I mORMot_Commons.inc} // define HASINLINE USETYPEINFO CPU32 CPU64 OWNNORMTOUPPER
 
 interface
 
@@ -261,7 +261,7 @@ uses
 const
   /// the current version number of the freeware Synopse framework
   // - match the value defined in SynCommons.pas
-  SYNOPSE_FRAMEWORK_VERSION = {$I SynopseCommit.inc};
+  SYNOPSE_FRAMEWORK_VERSION = {$I mORMot_Commons_Commit.inc};
 
   /// the full text of the current Synopse mORMot framework version
   XPOWEREDPROGRAM = 'Synopse mORMot '+SYNOPSE_FRAMEWORK_VERSION;

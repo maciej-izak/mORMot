@@ -10,7 +10,7 @@ interface
 uses
   PasZip, SynBidirSock, SynBigTable, SynCommons, SynCrtSock, SynCrypto, 
   SynFastWideString, SynFPCTypInfo, SynLog, SynLZ, SynLZO, SynMustache, 
-  SynSSPIAuth, SynWinSock, SynZip, SynZipFiles, SynTests, LazarusPackageIntf;
+  SynSSPIAuth, SynTests, SynWinSock, SynZip, SynZipFiles, LazarusPackageIntf;
 
 implementation
 

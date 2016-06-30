@@ -69,7 +69,7 @@ unit SynSSPIAuth;
 
 }
 
-{$I Synopse.inc} // define HASINLINE and other compatibility switches
+{$I mORMot_Commons.inc} // define HASINLINE and other compatibility switches
 
 interface
 

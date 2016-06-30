@@ -49,7 +49,7 @@ unit PasZip;
 
 { $D-,L-}
 
-{$I Synopse.inc}
+{$I mORMot_Commons.inc}
 
 interface
 

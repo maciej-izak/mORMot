@@ -8,86 +8,82 @@
       <Version Value="11"/>
       <PathDelim Value="\"/>
       <SearchPaths>
-        <OtherUnitFiles Value=".."/>
+        <OtherUnitFiles Value="..\Source\commons"/>
         <UnitOutputDirectory Value="lib\$(TargetCPU)-$(TargetOS)"/>
       </SearchPaths>
     </CompilerOptions>
-    <Files Count="19">
+    <Files Count="18">
       <Item1>
-        <Filename Value="..\PasZip.pas"/>
-        <UnitName Value="PasZip"/>
+        <AddToUsesPkgSection Value="False"/>
       </Item1>
       <Item2>
-        <Filename Value="..\SynBidirSock.pas"/>
-        <UnitName Value="SynBidirSock"/>
+        <Filename Value="..\Source\Commons\PasZip.pas"/>
+        <UnitName Value="PasZip"/>
       </Item2>
       <Item3>
-        <Filename Value="..\SynBigTable.pas"/>
-        <UnitName Value="SynBigTable"/>
+        <Filename Value="..\Source\Commons\SynBidirSock.pas"/>
+        <UnitName Value="SynBidirSock"/>
       </Item3>
       <Item4>
-        <Filename Value="..\SynCommons.pas"/>
-        <UnitName Value="SynCommons"/>
+        <Filename Value="..\Source\Commons\SynBigTable.pas"/>
+        <UnitName Value="SynBigTable"/>
       </Item4>
       <Item5>
-        <Filename Value="..\SynCrtSock.pas"/>
-        <UnitName Value="SynCrtSock"/>
+        <Filename Value="..\Source\Commons\SynCommons.pas"/>
+        <UnitName Value="SynCommons"/>
       </Item5>
       <Item6>
-        <Filename Value="..\SynCrypto.pas"/>
-        <UnitName Value="SynCrypto"/>
+        <Filename Value="..\Source\Commons\SynCrtSock.pas"/>
+        <UnitName Value="SynCrtSock"/>
       </Item6>
       <Item7>
-        <Filename Value="..\SynFastWideString.pas"/>
-        <UnitName Value="SynFastWideString"/>
+        <Filename Value="..\Source\Commons\SynCrypto.pas"/>
+        <UnitName Value="SynCrypto"/>
       </Item7>
       <Item8>
-        <Filename Value="..\SynFPCTypInfo.pas"/>
-        <UnitName Value="SynFPCTypInfo"/>
+        <Filename Value="..\Source\Commons\SynFastWideString.pas"/>
+        <UnitName Value="SynFastWideString"/>
       </Item8>
       <Item9>
-        <Filename Value="..\SynLog.pas"/>
-        <UnitName Value="SynLog"/>
+        <Filename Value="..\Source\Commons\SynFPCTypInfo.pas"/>
+        <UnitName Value="SynFPCTypInfo"/>
       </Item9>
       <Item10>
-        <Filename Value="..\SynLZ.pas"/>
-        <UnitName Value="SynLZ"/>
+        <Filename Value="..\Source\Commons\SynLog.pas"/>
+        <UnitName Value="SynLog"/>
       </Item10>
       <Item11>
-        <Filename Value="..\SynLZO.pas"/>
-        <UnitName Value="SynLZO"/>
+        <Filename Value="..\Source\Commons\SynLZ.pas"/>
+        <UnitName Value="SynLZ"/>
       </Item11>
       <Item12>
-        <Filename Value="..\SynMustache.pas"/>
-        <UnitName Value="SynMustache"/>
+        <Filename Value="..\Source\Commons\SynLZO.pas"/>
+        <UnitName Value="SynLZO"/>
       </Item12>
       <Item13>
-        <Filename Value="..\SynSSPIAuth.pas"/>
-        <UnitName Value="SynSSPIAuth"/>
+        <Filename Value="..\Source\Commons\SynMustache.pas"/>
+        <UnitName Value="SynMustache"/>
       </Item13>
       <Item14>
-        <Filename Value="..\SynWinSock.pas"/>
-        <UnitName Value="SynWinSock"/>
+        <Filename Value="..\Source\Commons\SynSSPIAuth.pas"/>
+        <UnitName Value="SynSSPIAuth"/>
       </Item14>
       <Item15>
-        <Filename Value="..\SynZip.pas"/>
-        <UnitName Value="SynZip"/>
+        <Filename Value="..\Source\Commons\SynTests.pas"/>
+        <UnitName Value="SynTests"/>
       </Item15>
       <Item16>
-        <AddToUsesPkgSection Value="False"/>
+        <Filename Value="..\Source\Commons\SynWinSock.pas"/>
+        <UnitName Value="SynWinSock"/>
       </Item16>
       <Item17>
-        <Filename Value="..\SynZipFiles.pas"/>
-        <UnitName Value="SynZipFiles"/>
+        <Filename Value="..\Source\Commons\SynZip.pas"/>
+        <UnitName Value="SynZip"/>
       </Item17>
       <Item18>
-        <Filename Value="..\SynTests.pas"/>
-        <UnitName Value="SynTests"/>
+        <Filename Value="..\Source\Commons\SynZipFiles.pas"/>
+        <UnitName Value="SynZipFiles"/>
       </Item18>
-      <Item19>
-        <Filename Value="..\Packages2\mormot_sqlite3.lpk"/>
-        <Type Value="Text"/>
-      </Item19>
     </Files>
     <RequiredPkgs Count="1">
       <Item1>

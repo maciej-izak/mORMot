@@ -203,7 +203,7 @@ unit SynLZ;
 
 interface
 
-{$I Synopse.inc}
+{$I mORMot_Commons.inc}
 
 /// get maximum possible (worse) compressed size for out_p
 function SynLZcompressdestlen(in_len: integer): integer;

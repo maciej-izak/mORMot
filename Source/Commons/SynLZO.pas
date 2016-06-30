@@ -142,7 +142,7 @@ unit SynLZO;
 
 interface
 
-{$I Synopse.inc}
+{$I mORMot_Commons.inc}
 
 uses
   Classes;
