@@ -151,6 +151,7 @@ uses
   {$endif}
   {$endif}
 {$endif LVCL}
+  SynEcc,
   SynDB,
   SynSQLite3,
   SynSQLite3Static,
@@ -335,6 +336,8 @@ type
     procedure NumericalConversions;
     /// test crc32c in both software and hardware (SSE4.2) implementations
     procedure _crc32c;
+    /// test TSynBloomFilter class
+    procedure BloomFilters;
     /// the new fast Currency to/from string conversion
     procedure Curr64;
     /// the camel-case / camel-uncase features, used for i18n from Delphi RTII
@@ -345,6 +348,8 @@ type
     procedure IniFiles;
     /// test UTF-8 and Win-Ansi conversion (from or to, through RawUnicode)
     procedure _UTF8;
+    /// test ASCII Baudot encoding
+    procedure BaudotCode;
     /// the ISO-8601 date and time encoding
     // - test especially the conversion to/from text
     procedure Iso8601DateAndTime;
@@ -435,7 +440,7 @@ type
   protected
     Data: RawByteString;
     M: THeapMemoryStream;
-    crc: cardinal;
+    crc0,crc1: cardinal;
   public
     /// release used instances and memory
     procedure CleanUp; override;
@@ -477,6 +482,30 @@ type
     /// AES-based pseudorandom number generator
     procedure _TAESPNRG;
   end;
+
+  /// this test case will test ECDH and ECDSA cryptography as implemented
+  // in the SynECC unit
+  TTestECCCryptography = class(TSynTestCase)
+  protected
+    pub: array of TECCPublicKey;
+    priv: array of TECCPrivateKey;
+    sign: array of TECCSignature;
+    hash: TECCHash;
+  published
+    /// avoid regression among platforms and compilers
+    procedure ReferenceVectors;
+    /// ECC private/public keys generation
+    procedure _ecc_make_key;
+    /// ECDSA signature computation
+    procedure _ecdsa_sign;
+    /// ECDSA signature verification
+    procedure _ecdsa_verify;
+    /// ECDH key derivation
+    procedure _ecdh_shared_secret;
+    /// ECDSA certificates chains and digital signatures
+    procedure CertificatesAndSignatures;
+  end;
+
 
 {$ifdef MSWINDOWS}
 {$ifndef LVCL}
@@ -3047,6 +3076,42 @@ begin
   end;
 end;
 
+procedure TTestLowLevelCommon.BaudotCode;
+var u: RawUTF8;
+    b: RawByteString;
+    i,j,k: integer;
+    P: PAnsiChar absolute u;
+const CHR: array[0..54] of AnsiChar =
+  'abcdefghijklm nopqrstuvwx yz012345 6789-''3,!:(+)$?@./; ';
+begin
+  b := AsciiToBaudot('');
+  check(b='');
+  b := AsciiToBaudot('abc');
+  u := BaudotToAscii(b);
+  check(u='abc');
+  b := AsciiToBaudot('mORMot.net');
+  check(BaudotToAscii(b)='mormot.net');
+  b := b+#0#0#0;
+  u := BaudotToAscii(b);
+  check(u='mormot.net');
+  b := AsciiToBaudot('http://synopse.info');
+  u := BaudotToAscii(b);
+  check(u='http://synopse.info');
+  b := AsciiToBaudot('abcdef 1234 5678'#13#10'ABCD;/23u'#13#10'op @toto.#com');
+  check(b<>'');
+  u := BaudotToAscii(b);
+  check(u='abcdef 1234 5678'#13#10'abcd;/23u'#13#10'op @toto.com');
+  for i := 1 to 200 do begin
+    SetLength(u,i);
+    for k := 1 to 50 do begin
+      for j := 0 to i-1 do
+        P[j] := CHR[Random(55)];
+      b := AsciiToBaudot(u);
+      check(BaudotToAscii(b)=u);
+    end;
+  end;
+end;
+
 procedure TTestLowLevelCommon._UTF8;
 procedure Test(CP: cardinal; const W: WinAnsiString);
 var C: TSynAnsiConvert;
@@ -4201,6 +4266,111 @@ begin
     end;
   finally
     dict.Free;
+  end;
+end;
+
+procedure TTestLowLevelCommon.BloomFilters;
+const SIZ=200000;
+var b: TSynBloomFilter;
+    d1,d2: TSynBloomFilterDiff;
+    i,j,n: integer;
+    falsepositive: double;
+    sav1000, savSIZ: RawByteString;
+begin
+  b := TSynBloomFilter.Create(SIZ+5000);
+  try
+    CheckSame(b.FalsePositivePercent,1);
+    Check(b.Size=SIZ+5000);
+    Check(b.Bits>b.Size shl 3);
+    Check(b.HashFunctions=7);
+    Check(b.Inserted=0);
+    CheckLogTimeStart;
+    for i := 1 to SIZ do
+      Check(not b.MayExist(@i,sizeof(i)));
+    CheckLogTime(b.Inserted=0,'MayExists(%)=false',[SIZ]);
+    for i := 1 to 1000 do
+      b.Insert(@i,sizeof(i));
+    CheckLogTime(b.Inserted=1000,'Insert(%)',[b.Inserted]);
+    sav1000 := b.SaveTo;
+    CheckLogTime(sav1000<>'','b.SaveTo(%) len=%',[b.Inserted,kb(length(sav1000))]);
+    for i := 1001 to SIZ do
+      b.Insert(@i,sizeof(i));
+    CheckLogTime(b.Inserted=SIZ,'Insert(%)',[SIZ-1000]);
+    savSIZ := b.SaveTo;
+    CheckLogTime(length(savSIZ)>length(sav1000),'b.SaveTo(%) len=%',[SIZ,kb(length(savSIZ))]);
+    for i := 1 to SIZ do
+      Check(b.MayExist(@i,sizeof(i)));
+    CheckLogTime(b.Inserted=SIZ,'MayExists(%)=true',[SIZ]);
+    n := 0;
+    for i := SIZ+1 to SIZ+SIZ shr 5 do
+      if b.MayExist(@i,sizeof(i)) then
+        inc(n);
+    falsepositive := (n*100)/(SIZ shr 5);
+    CheckLogTime(falsepositive<1,'falsepositive=%',[falsepositive]);
+    b.Reset;
+    CheckLogTime(b.Inserted=0,'b.Reset',[]);
+    for i := 1 to SIZ do
+      Check(not b.MayExist(@i,sizeof(i)));
+    CheckLogTime(b.Inserted=0,'MayExists(%)=false',[SIZ]);
+    CheckLogTime(b.LoadFrom(sav1000),'b.LoadFrom(%)',[1000]);
+    for i := 1 to 1000 do
+      Check(b.MayExist(@i,sizeof(i)));
+    CheckLogTime(b.Inserted=1000,'MayExists(%)=true',[1000]);
+  finally
+    b.Free;
+  end;
+  CheckLogTime(true,'b.Free',[]);
+  d1 := TSynBloomFilterDiff.Create(savSIZ);
+  try
+    CheckLogTime(true,'d1 := TSynBloomFilterDiff.Create(%)',[SIZ]);
+    CheckSame(d1.FalsePositivePercent,1);
+    Check(d1.Size=SIZ+5000);
+    Check(d1.Bits>d1.Size shl 3);
+    Check(d1.HashFunctions=7);
+    for i := 1 to SIZ do
+      Check(d1.MayExist(@i,sizeof(i)));
+    CheckLogTime(d1.Inserted=SIZ,'MayExists(%)=true',[SIZ]);
+    d2 := TSynBloomFilterDiff.Create;
+    try
+      Check(d2.Revision=0);
+      n := SIZ;
+      for j := 1 to 3 do begin
+        savSiz := d1.SaveToDiff(d2.Revision);
+        CheckLogTime(savSiz<>'','d1.SaveToDiff(%) len=%',[d2.Revision,KB(length(savSiz))]);
+        Check(d1.DiffKnownRevision(savSIZ)=d1.Revision);
+        Check((d2.Revision=d1.Revision)=(j>1));
+        CheckLogTime(d2.LoadFromDiff(savSiz),'d2.LoadFromDiff(%)',[n]);
+        Check(d2.Revision=d1.Revision);
+        Check(d2.Size=d1.Size);
+        for i := 1 to n do
+          Check(d2.MayExist(@i,sizeof(i)));
+        CheckLogTime(d2.Inserted=cardinal(n),'MayExists(%)=true',[n]);
+        for i := n+1 to n+1000 do
+          d1.Insert(@i,sizeof(i));
+        CheckLogTime(d2.Revision<>d1.Revision,'d1.Insert(%)',[1000]);
+        savSiz := d1.SaveToDiff(d2.Revision);
+        CheckLogTime(savSiz<>'','d1.SaveToDiff(%) len=%',[d2.Revision,kb(length(savSiz))]);
+        Check(d1.DiffKnownRevision(savSIZ)=d1.Revision);
+        Check(d2.Revision<>d1.Revision);
+        CheckLogTime(d2.LoadFromDiff(savSiz),'d2.LoadFromDiff(%)',[n]);
+        Check(d2.Revision=d1.Revision);
+        inc(n,1000);
+        for i := 1 to n do
+          Check(d2.MayExist(@i,sizeof(i)));
+        CheckLogTime(d2.Inserted=cardinal(n),'MayExists(%)=true',[n]);
+        Check(d2.Inserted=cardinal(n));
+        if j=2 then begin
+          d1.DiffSnapshot;
+          CheckLogTime(d2.Revision=d1.Revision,'d1.DiffSnapshot',[]);
+        end;
+      end;
+    finally
+      d2.Free;
+      CheckLogTime(true,'d2.Free',[]);
+    end;
+  finally
+    d1.Free;
+    CheckLogTime(true,'d1.Free',[]);
   end;
 end;
 
@@ -7480,10 +7650,10 @@ begin
             R.FillWith(i);
             Check(Client.BatchAdd(R,true,false,ALL_FIELDS)=i-100);
           end;
-          Check(Client.BatchSend(IDs)=HTML_SUCCESS);
+          Check(Client.BatchSend(IDs)=HTTP_SUCCESS);
           Check(Length(IDs)=9900);
           Check(not FileExists('fullmem.data'));
-          Check(Client.CallBackPut('Flush','',dummy)=HTML_SUCCESS);
+          Check(Client.CallBackPut('Flush','',dummy)=HTTP_SUCCESS);
           Check(FileExists('fullmem.data'));
           Check(Client.Retrieve(200,R));
           R.CheckWith(self,200);
@@ -7591,7 +7761,7 @@ begin
               R.FillWith(i);
               Check(Batch.Add(R,true,false,ALL_FIELDS)=i-10000);
             end;
-            Check(Server.BatchSend(Batch,IDs)=HTML_SUCCESS);
+            Check(Server.BatchSend(Batch,IDs)=HTTP_SUCCESS);
           finally
             Batch.Free;
           end;
@@ -7974,7 +8144,7 @@ const
 
 function UpdateCrc32(aCRC32: cardinal; inBuf: pointer; inLen: integer) : cardinal;
 var i: integer;
-begin // slowest but always accurate version
+begin // slowest reference version
   result := not aCRC32;
   for i := 1 to inLen do begin
     result := crc32tab[(result xor pByte(inBuf)^) and $ff] xor (result shr 8);
@@ -7999,35 +8169,36 @@ begin
   Check(crc32(0,pointer(PtrInt(@crc32tab)+1),2)=$41D912FF,'crc32');
   Check(UpdateCrc32(0,pointer(PtrInt(@crc32tab)+1),2)=$41D912FF);
   Check(crc32(0,pointer(PtrInt(@crc32tab)+3),1024-5)=$E5FAEC6C,'crc32');
-  Check(UpdateCrc32(0,pointer(PtrInt(@crc32tab)+3),1024-5)=$E5FAEC6C);
+  Check(UpdateCrc32(0,pointer(PtrInt(@crc32tab)+3),1024-5)=$E5FAEC6C,'crc32');
   M := SynCommons.THeapMemoryStream.Create;
   Z := TSynZipCompressor.Create(M,6,szcfGZ);
   L := length(Data);
   P := Pointer(Data);
-  crc := 0;
+  crc0 := 0;
   crc2 := 0;
   while L<>0 do begin
     if L>1000 then
       n := 1000 else
       n := L;
     Z.Write(P^,n); // compress by little chunks to test streaming
-    crc := crc32(crc,P,n);
+    crc0 := crc32(crc0,P,n);
     crc2 := UpdateCrc32(crc2,P,n);
     inc(P,n);
     dec(L,n);
   end;
-  Check(crc=Z.CRC,'crc32');
-  Check(crc2=crc,'crc32');
+  Check(crc0=Z.CRC,'crc32');
+  Check(crc2=crc0,'crc32');
   Z.Free;
-  Check(GZRead(M.Memory,M.Position)=Data);
+  Check(GZRead(M.Memory,M.Position)=Data,'gzread');
+  crc1 := crc32(0,M.Memory,M.Position);
   s := Data;
   Check(CompressGZip(s,true)='gzip');
   Check(CompressGZip(s,false)='gzip');
-  Check(s=Data);
+  Check(s=Data,'compressGZip');
   s := Data;
   Check(CompressDeflate(s,true)='deflate');
   Check(CompressDeflate(s,false)='deflate');
-  Check(s=Data);
+  Check(s=Data,'CompressDeflate');
 end;
 
 procedure TTestCompression.InMemoryCompression;
@@ -8052,36 +8223,44 @@ var FN,FN2: TFileName;
 procedure Test(Z: TZipRead; aCount: integer);
 var i: integer;
     tmp: RawByteString;
-    crc: Cardinal;
+    tmpFN: TFileName;
+    info: TFileInfo;
 begin
   with Z do
   try
     Check(Count=aCount);
     i := NameToIndex('REP1\ONE.exe');
     Check(i=0);
+    FillcharFast(info,sizeof(info),0);
+    Check(RetrieveFileInfo(i,info));
+    Check(integer(info.zfullSize)=length(Data));
+    Check(info.zcrc32=crc0);
     Check(UnZip(i)=Data);
     i := NameToIndex('REp2\ident.gz');
     Check(i=1);
-    crc := crc32(0,M.Memory,M.Position);
-    Check(Entry[i].infoLocal^.zcrc32=crc);
+    Check(Entry[i].infoLocal^.zcrc32=crc1);
     tmp := UnZip(i);
     Check(tmp<>'');
-    Check(crc32(0,pointer(tmp),length(tmp))=crc);
+    Check(crc32(0,pointer(tmp),length(tmp))=crc1);
     i := NameToIndex(ExeName);
     Check(i=2);
     Check(UnZip(i)=Data);
-    Check(Entry[i].infoLocal^.zcrc32=crc32(0,pointer(Data),length(Data)));
+    Check(Entry[i].infoLocal^.zcrc32=info.zcrc32);
     i := NameToIndex('REp2\ident2.gz');
     Check(i=3);
-    Check(Entry[i].infoLocal^.zcrc32=crc);
+    Check(Entry[i].infoLocal^.zcrc32=crc1);
     tmp := UnZip(i);
     Check(tmp<>'');
-    Check(crc32(0,pointer(tmp),length(tmp))=crc);
+    Check(crc32(0,pointer(tmp),length(tmp))=crc1);
     if aCount=4 then
       Exit;
     i := NameToIndex('REP1\twO.exe');
     Check(i=4);
     Check(UnZip(i)=Data);
+    tmpFN := 'TestSQL3zipformat.tmp';
+    Check(UnZip('REP1\one.exe',tmpFN,true));
+    Check(StringFromFile(tmpFN)=Data);
+    Check(DeleteFile(tmpFN));
   finally
     Free;
   end;
@@ -8339,6 +8518,7 @@ begin
         A.Decrypt(b,p);
         A.Done;
         Check(CompareMem(@p,@s,AESBLockSize));
+        Check(IsEqual(p,s));
         Timer[noaesni].Resume;
         Check(SynCrypto.AES(Key,ks,SynCrypto.AES(Key,ks,st,true),false)=st);
         Timer[noaesni].Pause;
@@ -8451,6 +8631,7 @@ begin
       md.Update(tmp[0],1);
     md.Final(dig);
     md.Full(pointer(tmp),n,dig2);
+    check(IsEqual(dig,dig2));
     check(CompareMem(@dig,@dig2,sizeof(dig)));
   end;
 end;
@@ -8520,12 +8701,14 @@ var SHA: TSHA256;
 begin
   // 1. Hash complete AnsiString
   SHA.Full(pointer(s),length(s),Digest);
+  Check(IsEqual(Digest,TDig));
   Check(CompareMem(@Digest,@TDig,sizeof(Digest)));
   // 2. one update call for each char
   SHA.Init;
   for i := 1 to length(s) do
     SHA.Update(@s[i],1);
   SHA.Final(Digest);
+  Check(IsEqual(Digest,TDig));
   Check(CompareMem(@Digest,@TDig,sizeof(Digest)));
 end;
 const
@@ -8543,6 +8726,7 @@ begin
   SingleTest('abc',D1);
   SingleTest('abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq',D2);
   SHA256Weak('lagrangehommage',Digest); // test with len=256>64
+  Check(IsEqual(Digest,D3));
   Check(Comparemem(@Digest,@D3,sizeof(Digest)));
   PBKDF2_HMAC_SHA256('password','salt',1,Digest);
   check(SHA256DigestToString(Digest)=
@@ -8582,12 +8766,14 @@ var b1,b2: TAESBlock;
 begin
   TAESPRNG.Main.FillRandom(b1);
   TAESPRNG.Main.FillRandom(b2);
+  Check(not IsEqual(b1,b2));
   Check(not CompareMem(@b1,@b2,sizeof(b1)));
   a1 := TAESPRNG.Create;
   a2 := TAESPRNG.Create;
   try
     a1.FillRandom(b1);
     a2.FillRandom(b2);
+    Check(not IsEqual(b1,b2));
     Check(not CompareMem(@b1,@b2,sizeof(b1)));
     Check(a1.FillRandom(0)='');
     for i := 1 to 2000 do begin
@@ -8614,6 +8800,308 @@ begin
       check(CompareMem(pointer(s1),pointer(s2),i));
     end;
   check(PosEx(s1,split)=0);
+end;
+
+
+{ TTestECCCryptography }
+
+const
+  ECC_COUNT = {$ifdef CPU64}200{$else}50{$endif};
+
+procedure TTestECCCryptography.ReferenceVectors;
+var pr1,pr2: TECCPrivateKey;
+    pu1,pu2: TECCPublicKey;
+    h: TECCHash;
+    si: TECCSignature;
+    s1,s2,s3: TECCSecretKey;
+begin
+  if not ecc_available then
+    exit;
+  SetLength(pub, ECC_COUNT);
+  SetLength(priv, ECC_COUNT);
+  SetLength(sign, ECC_COUNT);
+  TAESPRNG.Main.FillRandom(@hash,sizeof(hash));
+  Check(SynCommons.HexToBin(PAnsiChar(
+    'DC5B79BD481E536DD8075D06C18D42B25B557B4671017BA2A26102B69FD9B70A'),@pr1,sizeof(pr1)));
+  Check(SynCommons.HexToBin(PAnsiChar(
+    '024698753E25650A3129320A7DDBA43D56051F4BEE3653897960A61FBC92AB24A5'),@pu1,sizeof(pu1)));
+  Check(SynCommons.HexToBin(PAnsiChar(
+    'CFA96FAC873F522897000815BE96338DE8D355D5F495DD5C5A4FEF0AEDB66D5B'),@pr2,sizeof(pr2)));
+  Check(SynCommons.HexToBin(PAnsiChar(
+    '0298D0D01FCE73146C10CD05E08BEA573BEE4EFC56D5EBAAC64B32672C8FAC1502'),@pu2,sizeof(pu2)));
+  Check(SynCommons.HexToBin(PAnsiChar(
+    '9509D00BBBA2308445BC73311C3887E935183F65D361D4C39E2FA432B7168599'),@h,sizeof(h)));
+  Check(SynCommons.HexToBin(
+    PAnsiChar('F04CD0AA3D40433C51F35D07DBF4E11C91C922791A8BA7B930B5C30716D8B26E4B65EFBF'+
+    'BDC0526A94ABDAA31130248F0413AC33D5BFA903E09847AAF42FD043'),@si,sizeof(si)));
+  Check(ecdsa_verify(pu1,h,si));
+  Check(SynCommons.HexToBin(PAnsiChar(
+    '3366C112F95B2F52836171CAD3F3441C4B3C75348859092B200DE5024CB0C91B'),@h,sizeof(h)));
+  Check(SynCommons.HexToBin(PAnsiChar(
+    'EEEF6F1D0A590BFC72B9D7DC0DB4BF36A8928DA2B8078FEE567808BB082525438CF68546'+
+    '26E17FBB28528450E50E43AB2598ED2CD3ACC7B43865BEB843452713'),@si,sizeof(si)));
+  Check(ecdsa_verify(pu2,h,si));
+  Check(SynCommons.HexToBin(PAnsiChar(
+    '51A0C8018EC725F9B9F821D826FEEC4CAE8843066685522F1961D25935EAA39E'),@s1,sizeof(s1)));
+  Check(ecdh_shared_secret(pu1,pr2,s2));
+  Check(IsEqual(s1,s2));
+  Check(CompareMem(@s1,@s2,sizeof(s1)));
+  Check(ecdh_shared_secret(pu2,pr1,s3));
+  Check(IsEqual(s1,s3));
+  Check(CompareMem(@s1,@s3,sizeof(s1)));
+end;
+
+procedure TTestECCCryptography._ecc_make_key;
+var i: integer;
+begin
+  if ecc_available then
+    for i := 0 to ECC_COUNT-1 do
+      Check(ecc_make_key(pub[i], priv[i]));
+end;
+
+procedure TTestECCCryptography._ecdsa_sign;
+var i: integer;
+begin
+  if ecc_available then
+    for i := 0 to ECC_COUNT-1 do
+      Check(ecdsa_sign(priv[i], hash, sign[i]));
+end;
+
+procedure TTestECCCryptography._ecdsa_verify;
+var i: integer;
+begin
+  if ecc_available then
+    for i := 0 to ECC_COUNT-1 do
+      check(ecdsa_verify(pub[i], hash, sign[i]));
+end;
+
+procedure TTestECCCryptography._ecdh_shared_secret;
+var sec1,sec2: TECCSecretKey;
+    i: integer;
+begin
+  if ecc_available then
+    for i := 0 to ECC_COUNT-2 do begin
+      check(ecdh_shared_secret(pub[i],priv[i+1],sec1));
+      check(ecdh_shared_secret(pub[i+1],priv[i],sec2));
+      check(IsEqual(sec1,sec2));
+    end;
+end;
+
+procedure TTestECCCryptography.CertificatesAndSignatures;
+const
+  PUBPRIV64: RawUTF8 =
+    'AQAKAAoAFAAp49cdwmwTSgk7ocIs+iWCLVmLFDvnzMbgAAAAAAAAACnj1x3CbBN'+
+    'KCTuhwiz6JYItWYsUO+fMxuAAAAAAAAAAAgm92LeP/SogOQAmFAKppFHFPPn1vRERJ1dwk5y8'+
+    'AloD66iKgas4FCX8yprik12Unvk3K45kS1tIkga7U273SBAoDj5WP1ENURn7znVgPm5UPrMZO'+
+    'vaZNdUuDPlCy1uzNJeQTIkgAAAAnddux+slXpcupBr3m2g/2skZyPIT0Y2mk9As06J2mMY=';
+  PUBPRIVJSON: RawUTF8 =
+    '{"Version":1,"Serial":"29E3D71DC26C134A093BA1C22CFA2582",'+
+    '"Issuer":"synopse.info","IssueDate":"2016-08-11","ValidityStart":'+
+    '"2016-08-11","ValidityEnd":"2016-08-21","AuthoritySerial":'+
+    '"29E3D71DC26C134A093BA1C22CFA2582","AuthorityIssuer":"synopse.info",'+
+    '"IsSelfSigned":true,"Base64":"';
+const
+  // Generated by tests
+  MYPRIVKEY: array[0..255] of byte = (
+    $39,$EC,$C0,$0D,$D0,$ED,$47,$DC,$2A,$14,$72,$80,$D7,$E2,$48,$C1,
+    $87,$6F,$11,$60,$5C,$77,$1C,$C6,$9B,$A8,$AD,$FD,$95,$17,$45,$A3,
+    $2F,$A0,$4A,$B3,$AF,$B4,$27,$13,$85,$16,$E0,$6C,$F7,$75,$F1,$C5,
+    $7C,$75,$6D,$34,$8C,$8F,$AB,$AD,$AA,$EA,$94,$5F,$A7,$B6,$F1,$E3,
+    $D4,$0E,$3D,$FE,$96,$ED,$5C,$53,$90,$98,$60,$1A,$85,$9D,$BF,$70,
+    $0F,$B2,$9D,$9B,$B2,$66,$36,$26,$F7,$FD,$3A,$5F,$DC,$AE,$67,$3B,
+    $8E,$C4,$61,$71,$5D,$F6,$1F,$9A,$2A,$20,$A0,$C9,$F8,$0D,$FB,$EE,
+    $3A,$17,$FA,$50,$FA,$AB,$EF,$72,$F8,$1D,$55,$CA,$1F,$6A,$86,$CB,
+    $AA,$0E,$58,$01,$1F,$8E,$6F,$CC,$EA,$ED,$98,$1B,$4D,$1F,$85,$89,
+    $74,$F6,$03,$FB,$9F,$1A,$50,$95,$F2,$8C,$79,$78,$9A,$94,$5C,$7F,
+    $2E,$CA,$06,$3E,$E7,$93,$7F,$93,$8F,$64,$6D,$27,$A4,$B3,$81,$CE,
+    $DB,$B1,$2A,$28,$79,$B6,$22,$87,$9F,$91,$01,$53,$6B,$B1,$AF,$91,
+    $60,$87,$8F,$61,$87,$55,$D0,$FF,$33,$73,$05,$FD,$39,$DC,$A9,$B7,
+    $EA,$D3,$72,$D6,$A6,$00,$98,$D2,$91,$96,$19,$A9,$1D,$7C,$6C,$9B,
+    $F8,$D0,$50,$31,$52,$C3,$D8,$1D,$9B,$54,$1B,$09,$8C,$CE,$36,$1B,
+    $4F,$2A,$EC,$98,$9B,$A2,$F7,$C4,$A8,$78,$AD,$DA,$B5,$56,$89,$67);
+  MYPRIVKEY_LEN = SizeOf(MYPRIVKEY);
+  MYPRIVKEY_ROUNDS = 100;
+  MYPRIVKEY_PASS = '123456';
+  MYPRIVKEY_CYPH = '4e/QgInP';
+var selfsignedroot, secret: TECCCertificateSecret;
+    cert: TECCCertificate;
+    sav, json, serial: RawUTF8;
+    bin: RawByteString;
+    {$ifdef DELPHI5OROLDER}
+    chain: TECCCertificateChain;
+    {$else}
+    json1,json2,jsonchain: RawUTF8;
+    chain: TECCCertificateChainFile;
+    {$endif}
+    sign: TECCSignatureCertified;
+    signcontent: TECCSignatureCertifiedContent;
+begin
+  if not ecc_available then
+    exit;
+  {$ifdef DELPHI5OROLDER}
+  chain := TECCCertificateChain.Create;
+  {$else}
+  chain := TECCCertificateChainFile.Create;
+  {$endif}
+  try
+    check(chain.Count=0);
+    selfsignedroot := TECCCertificateSecret.CreateNew(nil,'synopse.info',10);
+    check(selfsignedroot.IsSelfSigned);
+    check(selfsignedroot.HasSecret);
+    check(chain.IsValid(nil)=ecvBadParameter);
+    check(chain.IsValid(selfsignedroot)=ecvValidSelfSigned);
+    check(chain.Add(nil)=-1);
+    check(chain.Add(selfsignedroot)=-1);
+    check(chain.Count=0);
+    check(chain.AddSelfSigned(selfsignedroot)=0);
+    check(chain.Count=1);
+    check(not chain.IsValidCached);
+    chain.IsValidCached := true;
+    selfsignedroot := TECCCertificateSecret.CreateNew(nil,'mORMot.net',0);
+    serial := selfsignedroot.Serial;
+    check(length(serial)=32);
+    check(selfsignedroot.IsSelfSigned);
+    check(selfsignedroot.HasSecret);
+    check(chain.IsValid(nil)=ecvBadParameter);
+    check(chain.IsValid(selfsignedroot)=ecvValidSelfSigned);
+    check(chain.Add(nil)=-1);
+    check(chain.Add(selfsignedroot)=-1);
+    check(chain.Count=1);
+    check(chain.AddSelfSigned(selfsignedroot)=1);
+    check(chain.Count=2);
+    secret := TECCCertificateSecret.CreateNew(selfsignedroot,'google.fr');
+    check(chain.Count=2);
+    check(secret.HasSecret);
+    check(not secret.IsSelfSigned);
+    check(chain.IsValid(secret)=ecvValidSigned);
+    {$ifndef DELPHI5OROLDER}
+    json1 := ObjectToJson(secret);
+    {$endif}
+    sav := secret.PublicToBase64;
+    cert := TECCCertificate.CreateFromBase64(sav);
+    check(cert.Serial=secret.Serial);
+    check(not cert.IsSelfSigned);
+    check(chain.IsValid(cert)=ecvValidSigned);
+    check(cert.Issuer='google.fr');
+    check(cert.AuthorityIssuer='mormot.net');
+    check(chain.Add(cert)=2);
+    check(chain.Count=3);
+    check(chain.GetBySerial(cert.Content.Signed.Serial)=cert);
+    {$ifndef DELPHI5OROLDER}
+    json2 := ObjectToJson(cert);
+    check(json1=json2,'serialization trim private key');
+    {$endif}
+    secret.Free;
+    inc(sav[10]); // corrupt
+    cert := TECCCertificate.Create;
+    check(not cert.FromBase64(sav));
+    check(chain.IsValid(cert)=ecvCorrupted);
+    secret := TECCCertificateSecret.CreateFromBase64(PUBPRIV64);
+    check(secret.HasSecret);
+    check(secret.IsSelfSigned);
+    check(chain.IsValid(secret.Content,true)=ecvValidSelfSigned);
+    check(secret.Serial<>cert.Serial);
+    check(secret.Serial='29E3D71DC26C134A093BA1C22CFA2582');
+    {$ifndef DELPHI5OROLDER}
+    json1 := ObjectToJson(secret);
+    check(json1<>json2);
+    json2 := PUBPRIVJSON+copy(PUBPRIV64,1,posEx('y1uzNJeQTIk',PUBPRIV64)+10)+'AAAAA"}';
+    check(json1=json2,'no private key');
+    jsonchain := ObjectToJson(chain);
+    check(length(jsonchain)=2279);
+    {$endif}
+    sav := secret.SaveToSource('MyPrivKey','Generated by tests','123456');
+//  FileFromString(sav,'privkey.pas');
+    check(length(sav)=1380);
+    secret.Free;
+    cert.Free;
+    check(selfsignedroot.SaveToSecureFile('pass','.',64,1000));
+    secret := TECCCertificateSecret.CreateNew(selfsignedroot,'toto.com');
+    check(chain.Count=3);
+    check(chain.IsValid(secret)=ecvValidSigned);
+    json := chain.SaveToJson;
+    check(length(json)=718,'certificates have fixed len');
+    chain.Free; // will release selfsignedroot
+    {$ifdef DELPHI5OROLDER}
+    chain := TECCCertificateChain.Create;
+    {$else}
+    chain := TECCCertificateChainFile.Create;
+    {$endif}
+    check(chain.IsValid(secret)=ecvUnknownAuthority);
+    check(chain.LoadFromJson(json));
+    check(chain.SaveToJson=json);
+    check(chain.Count=3);
+    check(chain.IsValid(secret)=ecvValidSigned);
+    {$ifndef DELPHI5OROLDER}
+    json := ObjectToJson(chain);
+    check(length(json)=2280);
+    chain.SaveToFile('test');
+    {$endif}
+    bin := secret.SaveToSecureBinary('toto',64,1000);
+    check(length(bin)=2320);
+    secret.Free;
+    secret := TECCCertificateSecret.CreateFromSecureBinary(
+      @MYPRIVKEY,MYPRIVKEY_LEN,MYPRIVKEY_PASS,MYPRIVKEY_ROUNDS);
+    check(secret.Serial='29E3D71DC26C134A093BA1C22CFA2582');
+    check(chain.IsValid(secret.Content,true)=ecvValidSelfSigned);
+    {$ifndef DELPHI5OROLDER}
+    json2 := ObjectToJson(secret);
+    check(json1=json2);
+    {$endif}
+    secret.Free;
+    secret := TECCCertificateSecret.Create;
+    check(chain.IsValid(secret)=ecvCorrupted);
+    check(not secret.LoadFromSecureBinary(bin,'titi',1000));
+    check(secret.LoadFromSecureBinary(bin,'toto',1000));
+    check(chain.IsValid(secret)=ecvValidSigned);
+    chain.Add(secret);
+    check(chain.Count=4);
+    sign := TECCSignatureCertified.CreateNew(secret,pointer(json),length(json));
+    check(sign.Check);
+    check(sign.AuthoritySerial=secret.Serial);
+    check(sign.AuthorityIssuer=secret.Issuer);
+    sav := sign.ToBase64;
+    sign.Free;
+    sign := TECCSignatureCertified.CreateFromBase64(sav);
+    check(sign.Check);
+    check(sign.Version=1);
+    check(sign.Date=ECCText(NowECCDate));
+    check(sign.AuthoritySerial=secret.Serial);
+    check(sign.AuthorityIssuer='toto.com');
+    check(chain.IsSigned(sign,pointer(json),length(json))=ecvValidSigned);
+    signcontent := sign.Content;
+    inc(signcontent.Signature[10]); // corrupt
+    sign.Content := signcontent;
+    check(sign.Check,'seems valid');
+    check(chain.IsSigned(sign,pointer(json),length(json))=ecvInvalidSignature);
+    dec(signcontent.Signature[10]);
+    sign.Content := signcontent;
+    check(chain.IsSigned(sign,pointer(json),length(json))=ecvValidSigned);
+    check(chain.IsSigned(sav,pointer(json),length(json))=ecvValidSigned);
+    dec(json[10]);
+    check(chain.IsSigned(sign,pointer(json),length(json))=ecvInvalidSignature);
+    check(chain.IsSigned(sav,pointer(json),length(json))=ecvInvalidSignature);
+    chain.Clear;
+    check(chain.Count=0);
+    check(chain.IsSigned(sign,pointer(json),length(json))=ecvUnknownAuthority);
+    sign.Free;
+    selfsignedroot := TECCCertificateSecret.CreateFromSecureFile(
+      '.',serial,'pass',1000);
+    {$ifndef DELPHI5OROLDER}
+    check(chain.LoadFromFile('test'));
+    check(chain.Count=3);
+    check(chain.IsValid(selfsignedroot)=ecvValidSelfSigned);
+    check(selfsignedroot.IssueDate=ECCText(NowECCDate));
+    check(selfsignedroot.Content.Signed.IssueDate=NowECCDate);
+    check(chain.GetBySerial(serial)<>nil);
+    chain.IsValidCached := true;
+    check(ObjectToJson(chain)=jsonchain);
+    {$endif}
+    check(DeleteFile(selfsignedroot.SaveToSecureFileName));
+    selfsignedroot.Free;
+  finally
+    chain.Free;
+  end;
 end;
 
 
@@ -9284,7 +9772,7 @@ begin
       MasterAccess.BatchStart(TSQLRecordPeopleVersioned,10000);
       while Rec.FillOne do // fast add via Batch
         Test.Check(MasterAccess.BatchAdd(Rec,true,true)>=0);
-      Test.Check(MasterAccess.BatchSend(IDs)=HTML_SUCCESS);
+      Test.Check(MasterAccess.BatchSend(IDs)=HTTP_SUCCESS);
       Test.Check(n=length(IDs)+10);
       Test.Check(Rec.FillRewind);
       for i := 0 to 9 do
@@ -9443,7 +9931,7 @@ begin
           R.FillWith(i);
           Check(b.Add(R,true,false,ALL_FIELDS)=i-51);
         end;
-        Check(db.BatchSend(b)=HTML_SUCCESS);
+        Check(db.BatchSend(b)=HTTP_SUCCESS);
       finally
         b.Free;
       end;
@@ -10346,7 +10834,7 @@ begin
                 Client.BatchAdd(R,true);
                 inc(n);
               end;
-              Check(Client.BatchSend(res)=HTML_SUCCESS);
+              Check(Client.BatchSend(res)=HTTP_SUCCESS);
               Check(length(res)=n);
               Check(length(res)=n);
               for i := 1 to 100 do begin
@@ -10367,9 +10855,9 @@ begin
             for i := 0 to high(ids) do begin
               Client.BatchStart(TSQLRecordPeople);
               Client.BatchDelete(ids[i]);
-              Check(Client.BatchSend(res)=HTML_SUCCESS);
+              Check(Client.BatchSend(res)=HTTP_SUCCESS);
               Check(length(res)=1);
-              Check(res[0]=HTML_SUCCESS);
+              Check(res[0]=HTTP_SUCCESS);
             end;
             for i := 0 to high(ids) do
               Check(not Client.Retrieve(ids[i],R));
@@ -10920,7 +11408,7 @@ begin
         Check(aExternalClient.Retrieve(1,RInt1));
         Check(RInt1.fID=1);
         Check(n=fPeopleData.RowCount);
-        Check(aExternalClient.BatchSend(BatchID)=HTML_SUCCESS);
+        Check(aExternalClient.BatchSend(BatchID)=HTTP_SUCCESS);
         Check(length(BatchID)=n-99);
         Check(aExternalClient.TableHasRows(TSQLRecordPeopleExt));
         Check(aExternalClient.TableRowCount(TSQLRecordPeopleExt)=n);
@@ -10982,7 +11470,7 @@ begin
               {$endif}
             end;
           end;
-        Check(aExternalClient.BatchSend(BatchIDUpdate)=HTML_SUCCESS);
+        Check(aExternalClient.BatchSend(BatchIDUpdate)=HTTP_SUCCESS);
         Check(length(BatchIDUpdate)=70);
         for i := 1 to BatchID[high(BatchID)] do
           if i and 127=0 then
@@ -10992,7 +11480,7 @@ begin
             Check(aExternalClient.BatchDelete(i)>=0,'BatchDelete 1/128 rows');
           end else
             Check(aExternalClient.Delete(TSQLRecordPeopleExt,i),'Delete 1/128 rows');
-        Check(aExternalClient.BatchSend(BatchIDUpdate)=HTML_SUCCESS);
+        Check(aExternalClient.BatchSend(BatchIDUpdate)=HTTP_SUCCESS);
         Check(length(BatchIDUpdate)=55);
         n := aExternalClient.TableRowCount(TSQLRecordPeople);
         Check(aExternalClient.Server.TableRowCount(TSQLRecordPeopleExt)=10925);
@@ -11051,9 +11539,9 @@ begin
         for i := 0 to high(ids) do begin
           aExternalClient.BatchStart(TSQLRecordPeopleExt);
           aExternalClient.BatchDelete(ids[i]);
-          Check(aExternalClient.BatchSend(BatchID)=HTML_SUCCESS);
+          Check(aExternalClient.BatchSend(BatchID)=HTTP_SUCCESS);
           Check(length(BatchID)=1);
-          Check(BatchID[0]=HTML_SUCCESS);
+          Check(BatchID[0]=HTTP_SUCCESS);
         end;
         for i := 0 to high(ids) do
           Check(not aExternalClient.Retrieve(ids[i],RExt));
@@ -11074,7 +11562,7 @@ begin
           RJoin.People := TSQLRecordPeopleExt(i);
           aExternalClient.BatchAdd(RJoin,true);
         end;
-        Check(aExternalClient.BatchSend(BatchIDJoined)=HTML_SUCCESS);
+        Check(aExternalClient.BatchSend(BatchIDJoined)=HTTP_SUCCESS);
         Check(length(BatchIDJoined)=993);
         RJoin.FillPrepare(aExternalClient);
         Check(RJoin.FillTable.RowCount=993);
@@ -11553,9 +12041,9 @@ begin
     for i := 0 to high(ids) do begin
       ClientDist.BatchStart(TSQLRecordPeople);
       ClientDist.BatchDelete(ids[i]);
-      Check(ClientDist.BatchSend(res)=HTML_SUCCESS);
+      Check(ClientDist.BatchSend(res)=HTTP_SUCCESS);
       Check(length(res)=1);
-      Check(res[0]=HTML_SUCCESS);
+      Check(res[0]=HTTP_SUCCESS);
     end;
     for i := 0 to high(ids) do
       Check(not ClientDist.Retrieve(ids[i],V2));
@@ -13383,10 +13871,10 @@ begin
       Inst.ExpectedUserID := HTTPClient.SessionUser.ID;
       Inst.ExpectedGroupID := HTTPClient.SessionUser.GroupRights.ID;
       //SetOptions(false{$ifndef LVCL},true,[optExecInMainThread]{$endif});
-      Check(HTTPClient.CallBackGet('stat',['findservice','toto'],json)=HTML_SUCCESS);
+      Check(HTTPClient.CallBackGet('stat',['findservice','toto'],json)=HTTP_SUCCESS);
       Check(json='[]');
       for i := 0 to High(SERVICES) do begin
-        Check(HTTPClient.CallBackGet('stat',['findservice',SERVICES[i]],json)=HTML_SUCCESS);
+        Check(HTTPClient.CallBackGet('stat',['findservice',SERVICES[i]],json)=HTTP_SUCCESS);
         Check(json<>'[]');
         Check(HTTPClient.ServiceRetrieveAssociated(SERVICES[i],URI));
         Check(length(URI)=1);
@@ -14409,7 +14897,7 @@ function TBidirServer.TestRestCustom(a: integer): TServiceCustomAnswer;
 begin
   result.Header := BINARY_CONTENT_TYPE_HEADER;
   result.Content := Int32ToUtf8(a)+#0#1;
-  result.Status := HTML_SUCCESS;
+  result.Status := HTTP_SUCCESS;
 end;
 
 function TBidirServer.TestCallback(d: Integer; const callback: IBidirCallback): boolean;
@@ -14487,7 +14975,7 @@ begin
     end;
   for a := -10 to 10 do begin
     res := I.TestRestCustom(a);
-    check(res.Status=HTML_SUCCESS);
+    check(res.Status=HTTP_SUCCESS);
     check(GetInteger(pointer(res.Content))=a);
     check(res.Content[Length(res.Content)]=#1);
   end;

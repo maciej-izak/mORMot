@@ -60,7 +60,7 @@ unit SynCrossPlatformSpecific;
   {$define ISSMS}           // for SmartMobileStudio
   {$define HASINLINE}
 {$else}           // Delphi or FPC: select a single USE* conditional
-  {$i SynCrossPlatform.inc} // define e.g. HASINLINE
+  {$I SynCrossPlatform.inc} // define e.g. HASINLINE
   {$ifdef MSWINDOWS}
     {$ifdef FPC}
       {$define USESYNCRT}       // sounds to be the best choice under Windows
@@ -165,14 +165,10 @@ type
   {$endif ISDWS}
 
   /// used to store the request of a REST call
-  {$ifdef FPC}
-  TSQLRestURIParams = object
-  {$else}
-  {$ifdef USESYNCRT}
+  {$ifdef USEOBJECTINSTEADOFRECORD}
   TSQLRestURIParams = object
   {$else}
   TSQLRestURIParams = record
-  {$endif}
   {$endif}
     /// input parameter containing the caller URI
     Url: string;
@@ -263,62 +259,64 @@ const
   /// MIME content type used for JSON communication
   JSON_CONTENT_TYPE = 'application/json; charset=UTF-8';
 
-  /// HTML Status Code for "Continue"
-  HTML_CONTINUE = 100;
-  /// HTML Status Code for "Switching Protocols"
-  HTML_SWITCHINGPROTOCOLS = 101;
-  /// HTML Status Code for "Success"
-  HTML_SUCCESS = 200;
-  /// HTML Status Code for "Created"
-  HTML_CREATED = 201;
-  /// HTML Status Code for "Accepted"
-  HTML_ACCEPTED = 202;
-  /// HTML Status Code for "Non-Authoritative Information"
-  HTML_NONAUTHORIZEDINFO = 203;
-  /// HTML Status Code for "No Content"
-  HTML_NOCONTENT = 204;
-  /// HTML Status Code for "Multiple Choices"
-  HTML_MULTIPLECHOICES = 300;
-  /// HTML Status Code for "Moved Permanently"
-  HTML_MOVEDPERMANENTLY = 301;
-  /// HTML Status Code for "Found"
-  HTML_FOUND = 302;
-  /// HTML Status Code for "See Other"
-  HTML_SEEOTHER = 303;
-  /// HTML Status Code for "Not Modified"
-  HTML_NOTMODIFIED = 304;
-  /// HTML Status Code for "Use Proxy"
-  HTML_USEPROXY = 305;
-  /// HTML Status Code for "Temporary Redirect"
-  HTML_TEMPORARYREDIRECT = 307;
-  /// HTML Status Code for "Bad Request"
-  HTML_BADREQUEST = 400;
-  /// HTML Status Code for "Unauthorized"
-  HTML_UNAUTHORIZED = 401;
-  /// HTML Status Code for "Forbidden"
-  HTML_FORBIDDEN = 403;
-  /// HTML Status Code for "Not Found"
-  HTML_NOTFOUND = 404;
-  // HTML Status Code for "Method Not Allowed"
-  HTML_NOTALLOWED = 405;
-  // HTML Status Code for "Not Acceptable"
-  HTML_NOTACCEPTABLE = 406;
-  // HTML Status Code for "Proxy Authentication Required"
-  HTML_PROXYAUTHREQUIRED = 407;
-  /// HTML Status Code for "Request Time-out"
-  HTML_TIMEOUT = 408;
-  /// HTML Status Code for "Internal Server Error"
-  HTML_SERVERERROR = 500;
-  /// HTML Status Code for "Not Implemented"
-  HTML_NOTIMPLEMENTED = 501;
-  /// HTML Status Code for "Bad Gateway"
-  HTML_BADGATEWAY = 502;
-  /// HTML Status Code for "Service Unavailable"
-  HTML_UNAVAILABLE = 503;
-  /// HTML Status Code for "Gateway Timeout"
-  HTML_GATEWAYTIMEOUT = 504;
-  /// HTML Status Code for "HTTP Version Not Supported"
-  HTML_HTTPVERSIONNONSUPPORTED = 505;
+  /// HTTP Status Code for "Continue"
+  HTTP_CONTINUE = 100;
+  /// HTTP Status Code for "Switching Protocols"
+  HTTP_SWITCHINGPROTOCOLS = 101;
+  /// HTTP Status Code for "Success"
+  HTTP_SUCCESS = 200;
+  /// HTTP Status Code for "Created"
+  HTTP_CREATED = 201;
+  /// HTTP Status Code for "Accepted"
+  HTTP_ACCEPTED = 202;
+  /// HTTP Status Code for "Non-Authoritative Information"
+  HTTP_NONAUTHORIZEDINFO = 203;
+  /// HTTP Status Code for "No Content"
+  HTTP_NOCONTENT = 204;
+  /// HTTP Status Code for "Partial Content"
+  HTTP_PARTIALCONTENT = 206;
+  /// HTTP Status Code for "Multiple Choices"
+  HTTP_MULTIPLECHOICES = 300;
+  /// HTTP Status Code for "Moved Permanently"
+  HTTP_MOVEDPERMANENTLY = 301;
+  /// HTTP Status Code for "Found"
+  HTTP_FOUND = 302;
+  /// HTTP Status Code for "See Other"
+  HTTP_SEEOTHER = 303;
+  /// HTTP Status Code for "Not Modified"
+  HTTP_NOTMODIFIED = 304;
+  /// HTTP Status Code for "Use Proxy"
+  HTTP_USEPROXY = 305;
+  /// HTTP Status Code for "Temporary Redirect"
+  HTTP_TEMPORARYREDIRECT = 307;
+  /// HTTP Status Code for "Bad Request"
+  HTTP_BADREQUEST = 400;
+  /// HTTP Status Code for "Unauthorized"
+  HTTP_UNAUTHORIZED = 401;
+  /// HTTP Status Code for "Forbidden"
+  HTTP_FORBIDDEN = 403;
+  /// HTTP Status Code for "Not Found"
+  HTTP_NOTFOUND = 404;
+  // HTTP Status Code for "Method Not Allowed"
+  HTTP_NOTALLOWED = 405;
+  // HTTP Status Code for "Not Acceptable"
+  HTTP_NOTACCEPTABLE = 406;
+  // HTTP Status Code for "Proxy Authentication Required"
+  HTTP_PROXYAUTHREQUIRED = 407;
+  /// HTTP Status Code for "Request Time-out"
+  HTTP_TIMEOUT = 408;
+  /// HTTP Status Code for "Internal Server Error"
+  HTTP_SERVERERROR = 500;
+  /// HTTP Status Code for "Not Implemented"
+  HTTP_NOTIMPLEMENTED = 501;
+  /// HTTP Status Code for "Bad Gateway"
+  HTTP_BADGATEWAY = 502;
+  /// HTTP Status Code for "Service Unavailable"
+  HTTP_UNAVAILABLE = 503;
+  /// HTTP Status Code for "Gateway Timeout"
+  HTTP_GATEWAYTIMEOUT = 504;
+  /// HTTP Status Code for "HTTP Version Not Supported"
+  HTTP_HTTPVERSIONNONSUPPORTED = 505;
 
 
 /// gives access to the class type to implement a HTTP connection
@@ -606,6 +604,7 @@ begin
   fOpaqueConnection := fConnection;
   fConnection.HTTPOptions := fConnection.HTTPOptions+[hoKeepOrigProtocol];
   fConnection.ConnectTimeout := fParameters.ConnectionTimeOut;
+  fConnection.ReadTimeout := fParameters.ReceiveTimeout;
   if fParameters.Https then begin
     fIOHandler := TIdSSLIOHandlerSocketOpenSSL.Create(nil);
     fConnection.IOHandler := fIOHandler;
@@ -653,7 +652,7 @@ begin
       fConnection.Request.Source := InStr;
     end;
     if Call.Verb='GET' then // allow 404 as valid Call.OutStatus
-      fConnection.Get(fURL+Call.Url,OutStr,[HTML_SUCCESS,HTML_NOTFOUND]) else
+      fConnection.Get(fURL+Call.Url,OutStr,[HTTP_SUCCESS,HTTP_NOTFOUND]) else
     if Call.Verb='POST' then
       fConnection.Post(fURL+Call.Url,InStr,OutStr) else
     if Call.Verb='PUT' then
@@ -700,6 +699,10 @@ constructor THttpClientHttpConnectionClass.Create(const aParameters: TSQLRestCon
 begin
   inherited Create(aParameters);
   fConnection := THttpClient.Create;
+  {$ifdef ISDELPHI102} // this basic settings are available only since Berlin!
+  fConnection.ConnectionTimeout := aParameters.ConnectionTimeOut;
+  fConnection.ResponseTimeout := aParameters.ReceiveTimeout;
+  {$endif}
   fConnection.OnValidateServerCertificate := DoValidateServerCertificate;
   fOpaqueConnection := fConnection;
 end;

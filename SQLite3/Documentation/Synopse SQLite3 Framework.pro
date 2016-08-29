@@ -730,7 +730,7 @@ Due to its modular design, you can integrate some framework bricks to your exist
 - You can use the direct DB layers, including the {\f1\fs20 @*TQuery@} emulation class - see @133@ - to replace some @**BDE@ queries, or introduce nice unique features like direct database access or {\i @*array bind@ing} for very fast data insertion - see @27@, or switch to a @*NoSQL@ database - see @83@;
 - Reports could benefit of the {\f1\fs20 mORMotReport.pas} code-based system, which is very easy to use even on the server side (serving @*PDF@ files), when your business logic heavily relies on objects, not direct DB - see @67@;
 - HTTP requests may be made available using Client-Server services via methods - see @49@, e.g. for rendering HTML pages generated on the fly with {\i @*Mustache@} templates- see @81@, pictures or @*PDF@ reports;
-- You can little by little move your logic out of the client side code into some server services defined via interfaces, without the overhead of SOAP or WCF - see @63@; migration to @*SOA@ is IMHO the main benefit of {\i mORMot} for existing projects;
+- You can little by little move your logic out of the client side code into some server services defined via interfaces, without the overhead of SOAP or WCF - see @63@; migration to @*SOA@ is the main benefit of {\i mORMot} for existing projects;
 - Make your application ready to offer a RESTful interface, e.g. for consuming JSON content via AJAX or mobile clients - see @86@;
 - New tables may be defined via the ORM/ODM features of {\i mORMot}, still hosted in your external SQL server - see @27@, as any previous data; in particular, mixed pure-ORM and regular-SQL requests may coexist; or {\i mORMot}'s data modeling may balance your storage among several servers (and technologies, like NoSQL);
 - Sharing the same tables between legacy code SQL and {\i mORMot} ORM is possible, but to avoid consistency problems, you should better follow some rules detailed @106@;
@@ -5926,7 +5926,7 @@ Here is an extract of the regression test corresponding to external databases:
 !  aExternalClient.BatchStart(TSQLRecordPeopleExt);
 !  aExternalClient.BatchAdd(RExt,true);
 !  (...)
-!  Check(aExternalClient.BatchSend(BatchID)=HTML_SUCCESS);
+!  Check(aExternalClient.BatchSend(BatchID)=HTTP_SUCCESS);
 !  Check(aExternalClient.TableHasRows(TSQLRecordPeopleExt));
 !  Check(aExternalClient.TableRowCount(TSQLRecordPeopleExt)=n);
 !  (...)
@@ -6453,7 +6453,7 @@ In the database model, we define a {\f1\fs20 TSQLRecord} class, as usual:
 !    property Data: TSQLRawBlob read fData write fData;
 !    property CreateTime: TCreateTime read fCreateTime write fCreateTime;
 !  end;
-Note that we did not define any {\f1\fs20 {\b index} ...} values for the {\f1\fs20 RawUTF8} property, as we need for external SQL databases, since {\i MongoDB} does not expect any restriction about text fields length (AFAIK the only SQL engines which allow this natively without any performance penalty are {\i SQlite3} and {\i @*PostgreSQL@}).
+Note that we did not define any {\f1\fs20 {\b index} ...} values for the {\f1\fs20 RawUTF8} property, as we need for external SQL databases, since {\i MongoDB} does not expect any restriction about text fields length (as far as I know, the only SQL engines which allow this natively without any performance penalty are {\i SQlite3} and {\i @*PostgreSQL@}).
 The property values will be stored in the native {\i MongoDB} layout, i.e. with a better coverage than the SQL types recognized by our {\f1\fs20 SynDB*} unit:
 |%24%14%64
 |\b Delphi|{\i MongoDB}|Remarks\b0
@@ -6612,13 +6612,13 @@ You can write the exact same code as with any SQL back-end:
 !  finally
 !    R.Free;
 !  end;
-!  assert(Client.BatchSend(IDs)=HTML_SUCCESS);
+!  assert(Client.BatchSend(IDs)=HTTP_SUCCESS);
 Or for deletion:
 !  Client.BatchStart(TSQLORM);
 !  for i := 5 to COLL_COUNT do
 !    if i mod 5=0 then
 !      assert(fClient.BatchDelete(i)>=0);
-!  assert(Client.BatchSend(IDs)=HTML_SUCCESS);
+!  assert(Client.BatchSend(IDs)=HTTP_SUCCESS);
 Speed benefit may be huge in regard to individual Add/Delete operations, even on a local {\i MongoDB} server. We will see some benchmark numbers now.
 :  ORM/ODM performance
 You can take a look at @59@ to compare {\i MongoDB} as back-end for our ORM classes.
@@ -6857,7 +6857,7 @@ Then the JSON can be parsed then emitted as such:
 !!  U := DynArraySaveJSON(git,TypeInfo(TTestCustomJSONGitHubs));
 You can see that the {\f1\fs20 record} serialization is auto-magically available at dynamic array level, which is pretty convenient in our case, since the {\f1\fs20 api.github.com} RESTful service returns a JSON array.
 It will convert 160 KB of very verbose JSON information:
-$[{"id":8079771,"name":"Component_ZendAuthentication","full_name":"zendframework/Component_ZendAuthentication","owner":{"login":"zendframework","id":296074,"avatar_url":"https://1.gravatar.com/avatar/460576a0866d93fdacb597da4b90f233?d=https%3A%2F%2Fidenticons.github.com%2F292b7433472e2946c926bdca195cec8c.png&r=x","gravatar_id":"460576a0866d93fdacb597da4b90f233","url":"https://api.github.com/users/zendframework","html_url":"https://github.com/zendframework","followers_url":"https://api.github.com/users/zendframework/followers","following_url":"https://api.github.com/users/zendframework/following{/other_user}","gists_url":"https://api.github.com/users/zendframework/gists{/gist_id}","starred_url":"https://api.github.com/users/zendframework/starred{/owner}{/repo}",...
+$[{"id":8079771,"name":"Component_ZendAuthentication","full_name":"zendframework/Component_ZendAuthentication","owner":{"login":"zendframework","id":296074,"avatar_url":"https://1.gravatar.com/avatar/460576a0866d93fdacb597da4b90f233?d=https%3A%2F%2Fidenticons.github.com%2F292b7433472e2946c926bdca195cec8c.png&r=x","gravatar_id":"460576a0866d93fdacb597da4b90f233","url":"https://api.github.com/users/zendframework","HTTP_url":"https://github.com/zendframework","followers_url":"https://api.github.com/users/zendframework/followers","following_url":"https://api.github.com/users/zendframework/following{/other_user}","gists_url":"https://api.github.com/users/zendframework/gists{/gist_id}","starred_url":"https://api.github.com/users/zendframework/starred{/owner}{/repo}",...
 Into the much smaller (6 KB) and readable JSON content, containing only the information we need:
 $[
 $ {
@@ -8086,7 +8086,7 @@ On the server side, you may write for instance:
 !      R.Test := Int32ToUTF8(i);
 !      Check(Batch.Add(R,true)=i-10000);
 !    end;
-!    Check(Server.BatchSend(Batch,IDs)=HTML_SUCCESS);
+!    Check(Server.BatchSend(Batch,IDs)=HTTP_SUCCESS);
 !  finally
 !    Batch.Free;
 !  end;
@@ -8620,7 +8620,7 @@ Using {\f1\fs20 Ctxt.Returns()} will let the method return the content in any fo
 For instance, you can return directly a value as plain text:
 !procedure TSQLRestServer.TimeStamp(Ctxt: TSQLRestServerURIContext);
 !begin
-!  Ctxt.Returns(Int64ToUtf8(ServerTimeStamp),HTML_SUCCESS,TEXT_CONTENT_TYPE_HEADER);
+!  Ctxt.Returns(Int64ToUtf8(ServerTimeStamp),HTTP_SUCCESS,TEXT_CONTENT_TYPE_HEADER);
 !end;
 Or you can return some binary file, retrieving the corresponding MIME type from its binary content:
 !procedure TSQLRestServer.GetFile(Ctxt: TSQLRestServerURIContext);
@@ -8631,14 +8631,14 @@ Or you can return some binary file, retrieving the corresponding MIME type from 
 !  fileName :=  'c:\data\'+ExtractFileName(Ctxt['filename']); // or Ctxt.Input['filename']
 !  content := StringFromFile(fileName);
 !  if content='' then
-!    Ctxt.Error('',HTML_NOTFOUND) else
-!    Ctxt.Returns(content,HTML_SUCCESS,HEADER_CONTENT_TYPE+
+!    Ctxt.Error('',HTTP_NOTFOUND) else
+!    Ctxt.Returns(content,HTTP_SUCCESS,HEADER_CONTENT_TYPE+
 !         GetMimeContentType(pointer(content),Length(content),fileName));
 !end;
 The corresponding client method may be defined as such:
 !function TMyClient.GetFile(const aFileName: RawUTF8): RawByteString;
 !begin
-!  if CallBackGet('GetFile',['filename',aFileName],RawUTF8(result))<>HTML_SUCCESS then
+!  if CallBackGet('GetFile',['filename',aFileName],RawUTF8(result))<>HTTP_SUCCESS then
 !    raise Exception.CreateFmt('Impossible to get file: %s',[result]);
 !end;
 Note that the {\f1\fs20 Ctxt.ReturnFile()} method - see @95@ - is preferred than manual file retrieval as implemented in this {\f1\fs20 TSQLRestServer.GetFile()} method. It is shown here for demonstration purposes only.
@@ -8676,7 +8676,7 @@ Be aware that you should {\i disable authentication} for the methods using this 
 This @*stateless@ @9@ model will enable several levels of caching, even using an external {\i Content Delivery Network} (@*CDN@) service. See @97@ for some potential hosting architectures, which may let your {\i mORMot} server scale to thousands of concurrent users, served around the world with the best responsiveness.
 :95 Returning file content
 Framework's HTTP server is able to handle returning a file as response to a method-based service.\line The @88@ is even able to serve the file content asynchronously from kernel mode, with outstanding performance.
-You can use the {\f1\fs20 Ctxt.ReturnFile()} method to return a file directly.\line This method is also able to guess the MIME type from the file extension, and handle {\f1\fs20 HTML_NOTMODIFIED = 304} process, if {\f1\fs20 Handle304NotModified} parameter is {\f1\fs20 true}, using the file time stamp.
+You can use the {\f1\fs20 Ctxt.ReturnFile()} method to return a file directly.\line This method is also able to guess the MIME type from the file extension, and handle {\f1\fs20 HTTP_NOTMODIFIED = 304} process, if {\f1\fs20 Handle304NotModified} parameter is {\f1\fs20 true}, using the file time stamp.
 Another possibility may be to use the {\f1\fs20 Ctxt.ReturnFileFromFolder()} method, which is able to efficiently return any file specified by its URI, from a local folder. It may be very handy to
 return some static web content from a {\i mORMot} HTTP server.
 \page
@@ -8690,14 +8690,14 @@ But you can have full access to the error workflow, if needed. In fact, calling 
 !    Ctxt.Error;
 !end;
 In case of an error on the server side, you may call {\f1\fs20 Ctxt.Error()} method (only the two valid status codes are {\f1\fs20 200} and {\f1\fs20 201}).
-The {\f1\fs20 Ctxt.Error()} method has an optional parameter to specify a custom error message in plain English, which will be returned to the client in case of an invalid status code. If no custom text is specified, the framework will return the corresponding generic HTTP status text (e.g. {\f1\fs20 "Bad Request"} for default status code {\f1\fs20 HTML_BADREQUEST} = 400).
-In this case, the client will receive a corresponding serialized JSON error object, e.g. for {\f1\fs20 Ctxt.Error('Missing Parameter',HTML_NOTFOUND)}:
+The {\f1\fs20 Ctxt.Error()} method has an optional parameter to specify a custom error message in plain English, which will be returned to the client in case of an invalid status code. If no custom text is specified, the framework will return the corresponding generic HTTP status text (e.g. {\f1\fs20 "Bad Request"} for default status code {\f1\fs20 HTTP_BADREQUEST} = 400).
+In this case, the client will receive a corresponding serialized JSON error object, e.g. for {\f1\fs20 Ctxt.Error('Missing Parameter',HTTP_NOTFOUND)}:
 ${
 $ "ErrorCode":404,
 $ "ErrorText":"Missing Parameter"
 $}
 If called from an AJAX client, or a browser, this content should be easy to interpret.
-Note that the framework core will catch any exception during the method execution, and will return a {\f1\fs20 "Internal Server Error" / HTML_SERVERERROR} = 500 error code with the associated textual exception details.
+Note that the framework core will catch any exception during the method execution, and will return a {\f1\fs20 "Internal Server Error" / HTTP_SERVERERROR} = 500 error code with the associated textual exception details.
 \page
 : Benefits and limitations of this implementation
 Method-based services allow fast and direct access to all {\f1\fs20 mORMot} Client-Server {\f1\fs20 RESTful} features, over all usual protocols of our framework: @*HTTP@/1.1, Named Pipe, Windows Messages, direct in-memory/in-process access.
@@ -8773,7 +8773,7 @@ Then we can use an interface:
 !function MyAdd(a,b: integer): integer;
 !var Calculator: ICalculator;
 !begin
-!  ICalculator := TServiceCalculator.Create;
+!  Calculator := TServiceCalculator.Create;
 !  result := Calculator.Add(a,b);
 !end;
 What's up over there?
@@ -8814,7 +8814,7 @@ Here the computation is not the same: we use {\f1\fs20 n2+n1} instead of {\f1\fs
 !function MyOtherAdd(a,b: integer): integer;
 !var Calculator: ICalculator;
 !begin
-!!  ICalculator := TOtherServiceCalculator.Create;
+!!  Calculator := TOtherServiceCalculator.Create;
 !  result := Calculator.Add(a,b);
 !end;
 :  Here comes the magic
@@ -9057,7 +9057,7 @@ Or, in its disguised variation, using an @*enumerated@ item:
 This later piece of code does not check {\f1\fs20 self}, but the {\f1\fs20 fProtocol} protected field. So even if you try to implement the {\i Single Responsibility principle}, you may still be able to break {\i Liskov Substitution}!
 Note that both patterns will eventually break the {\i Single Responsibility principle}: each behavior shall be defined in its own child {\f1\fs20 class} methods. As the {\i Open/Closed principle} will also be broken, since the class won't be open for extension, without touching the parent class, and modify the nested {\f1\fs20 if self is T* then ...} or {\f1\fs20 case fProtocol.* of ...} expressions.
 :   Partially abstract classes
-Another code smell may appear when you define a method which will stay {\f1\fs20 abstract} for some children, instantiated in the project. It will imply that some of the parent {\f1\fs20 class} behavior is not implemented at this particular hierarchy level. So you will not be able to use all the parent's methods, as will be expected by the {\i Liskov Substitution principle}.\line Note that the compiler will complain for it, hinting that you are creating a class with abstract methods. Never ignore such hints - which may benefit for being handled as errors at compilation time, IMHO. The (in)famous "{\f1\fs20 Abstract Error}" error dialog, which may appear at runtime, will reflect this bad code implementation. When it occurs on a server application without GUI... you got a picture of the terror, I guess...
+Another code smell may appear when you define a method which will stay {\f1\fs20 abstract} for some children, instantiated in the project. It will imply that some of the parent {\f1\fs20 class} behavior is not implemented at this particular hierarchy level. So you will not be able to use all the parent's methods, as will be expected by the {\i Liskov Substitution principle}.\line Note that the compiler will complain for it, hinting that you are creating a class with abstract methods. Never ignore such hints - which may benefit for being handled as errors at compilation time. The (in)famous "{\f1\fs20 Abstract Error}" error dialog, which may appear at runtime, will reflect this bad code implementation. When it occurs on a server application without GUI... you got a picture of the terror, I guess...
 A more subtle violation of {\i Liskov} may appear if you break the expectation of the parent class. The following code, which emulates a bar-code reader peripheral by sending the frame by email for debugging purpose (why not?), clearly fails the {\i Design by Contract} approach:
 !  TEMailEmulatedBarcodeProtocol = class(TAbstractBarcodeProtocol)
 !  protected
@@ -11356,7 +11356,7 @@ In order to specify a custom format, you can use the following {\f1\fs20 @*TServ
 !    Content: RawByteString;
 !    Status: cardinal;
 !  end;
-The {\f1\fs20 Header} field shall be not null (i.e. not equal to ''), and contains the expected content type header (e.g. {\f1\fs20 TEXT_CONTENT_TYPE_HEADER} or {\f1\fs20 HTML_CONTENT_TYPE_HEADER}).\line Then the {\f1\fs20 Content} value will be transmitted back directly to the client, with no JSON @*serialization@. Of course, no {\f1\fs20 var} nor {\f1\fs20 out} parameter will be transmitted (since there is no JSON result array any more).\line Finally, the {\f1\fs20 Status} field could be overridden with a property HTML code, if the default {\f1\fs20 HTML_SUCCESS} is not enough for your purpose. Note that when consumed from {\i Delphi} clients, {\f1\fs20 HTML_SUCCESS} is expected to be returned by the server: you should customize {\f1\fs20 Status} field only for plain AJAX / web clients.
+The {\f1\fs20 Header} field shall be not null (i.e. not equal to ''), and contains the expected content type header (e.g. {\f1\fs20 TEXT_CONTENT_TYPE_HEADER} or {\f1\fs20 HTML_CONTENT_TYPE_HEADER}).\line Then the {\f1\fs20 Content} value will be transmitted back directly to the client, with no JSON @*serialization@. Of course, no {\f1\fs20 var} nor {\f1\fs20 out} parameter will be transmitted (since there is no JSON result array any more).\line Finally, the {\f1\fs20 Status} field could be overridden with a property HTML code, if the default {\f1\fs20 HTTP_SUCCESS} is not enough for your purpose. Note that when consumed from {\i Delphi} clients, {\f1\fs20 HTTP_SUCCESS} is expected to be returned by the server: you should customize {\f1\fs20 Status} field only for plain AJAX / web clients.
 In order to implement such method, you may define such an interface:
 !  IComplexCalculator = interface(ICalculator)
 !    ['{8D0F3839-056B-4488-A616-986CF8D4DEB7}']
@@ -11767,7 +11767,7 @@ The data model and the expected authentication scheme were included in the {\f1\
 :   CRUD/ORM remote access
 Thanks to {\f1\fs20 SynCrossPlatform*} units, you could easily perform any remote ORM operation on your {\i mORMot} server, with the usual {\f1\fs20 TSQLRest} CRUD methods.\line For instance, the {\f1\fs20 RegressionTests.dpr} sample performs the following operations
 !!  fClient.CallBackGet('DropTable',[],Call,TSQLRecordPeople); // call of method-based service
-!  check(Call.OutStatus=HTML_SUCCESS);
+!  check(Call.OutStatus=HTTP_SUCCESS);
 !  people := TSQLRecordPeople.Create; // create a record ORM
 !  try
 !    for i := 1 to 200 do begin
@@ -11849,7 +11849,7 @@ As we already stated, @*BATCH@ mode is also supported, with the classic {\i mORM
 !  finally
 !    people.Free;
 !  end;
-!!  fClient.fBatchSend(res)=HTML_SUCCESS);
+!!  fClient.fBatchSend(res)=HTTP_SUCCESS);
 !  check(length(res)=200);
 !  for i := 1 to 200 do
 !    check(res[i-1]=i); // server returned the IDs of the newly created records
@@ -12676,7 +12676,7 @@ Any attempt to access to the {\f1\fs20 project.com} or {\f1\fs20 www.project.com
 !begin
 !  if fMyFileCache='' then
 !    fMyFileCache := StringFromFile(ChangeFileExt(paramstr(0),'.html'));
-!  Ctxt.Returns(fMyFileCache,HTML_SUCCESS,HTML_CONTENT_TYPE_HEADER,true);
+!  Ctxt.Returns(fMyFileCache,HTTP_SUCCESS,HTML_CONTENT_TYPE_HEADER,true);
 !end;
 This method will serve some static HTML content as the main front end page of this server connected to the Internet. For best performance, this UTF-8 content is cached in memory, and the HTTP 304 command will be handled, if the browser supports it. Of course, your application may return some more complex content, even serving a set of files hosted in a local folder, e.g. by calling {\f1\fs20 Ctxt.ReturnFile()} or {\f1\fs20 Ctxt.ReturnFileFromFolder()} methods in this {\f1\fs20 Html()} service:
 !procedure TMyServer.Html(Ctxt: TSQLRestServerURIContext);
@@ -12790,7 +12790,7 @@ Let's implement a simple command:
 !  if Author.ID<>0 then
 !    Articles := RestModel.RetrieveListJSON(
 !      TSQLArticle,'Author=? order by id desc limit 50',[ID],ARTICLE_FIELDS) else
-!    raise EMVCApplication.CreateGotoError(HTML_NOTFOUND);
+!    raise EMVCApplication.CreateGotoError(HTTP_NOTFOUND);
 !end;
 By convention, all parameters are allocated when {\f1\fs20 TMVCApplication} will execute a method. So you do not need to allocate or handle the {\f1\fs20 Author: TSQLAuthor} instance lifetime.\line You have direct access to the underlying {\f1\fs20 TSQLRest} instance via {\f1\fs20 TMVCApplication.RestModel}: so all CRUD operations are available. You can let the ORM do the low level SQL work for you: to retrieve all information about one {\f1\fs20 TSQLAuthor} and get the list of its associated articles, we just use a {\f1\fs20 TSQLRest} method with the appropriate WHERE clause. Here we returned the list of articles as a {\f1\fs20 TDocVariant}, so that they will be transmitted as a JSON array, without any intermediate marshalling to {\f1\fs20 TSQLArticle} instances, but with the {\f1\fs20 Tags} dynamic array published property returned as an array of integers (you may have used {\f1\fs20 TObjectList} or {\f1\fs20 RawJSON} instead, as will be detailed below).\line In case of any error, an {\f1\fs20 EMVCApplication} will be raised: when such an exception happens, the {\f1\fs20 TMVCApplication} will handle and convert it into a page change, and a redirection to the {\f1\fs20 IBlogApplication.Error()} method, which will return an error page, using the {\f1\fs20 Error.html} view template.
 Let's take a look at a bit more complex method, which we talked about in @%%mORMotMVCSequence@:
@@ -12814,7 +12814,7 @@ Let's take a look at a bit more complex method, which we talked about in @%%mORM
 !      Comments := RestModel.RetrieveList(TSQLComment,'Article=?',[Article.ID]);
 !    end;
 !  end else
-!    raise EMVCApplication.CreateGotoError(HTML_NOTFOUND);
+!    raise EMVCApplication.CreateGotoError(HTTP_NOTFOUND);
 !end;
 This method has to manage several use cases:
 - Display an {\f1\fs20 Article} from the database;
@@ -12953,7 +12953,7 @@ Then we can use the {\f1\fs20 TMVCApplication.CurrentSession} property to perfor
 !!    SessionInfo: TCookieData;
 !begin
 !!  if CurrentSession.CheckAndRetrieve<>0 then begin
-!    GotoError(result,HTML_BADREQUEST);
+!    GotoError(result,HTTP_BADREQUEST);
 !    exit;
 !  end;
 !!  Author := TSQLAuthor.Create(RestModel,'LogonName=?',[LogonName]);
@@ -13550,7 +13550,7 @@ This will allow checking of access right for all @*CRUD@ operations, according t
 !    end else
 !      // here, Table<>nil and TableIndex in [0..MAX_SQLTABLES-1]
 !!      if not (URI.TableIndex in Call.RestAccessRights^.POST) then // check User
-!!        Call.OutStatus := HTML_FORBIDDEN else
+!!        Call.OutStatus := HTTP_FORBIDDEN else
 !      (...)
 Making access rights a parameter allows this method to be handled as pure stateless, @*thread-safe@ and @*session@-free, from the bottom-most level of the framework.
 On the other hand, the security policy defined by this global parameter does not allow tuned per-user authorization. In the current implementation, the {\f1\fs20 SUPERVISOR_ACCESS_RIGHTS} constant is transmitted for all handled communication protocols (direct access, Windows Messages, named pipe or HTTP). Only direct access via {\f1\fs20 @*TSQLRestClientDB@} will use {\f1\fs20 FULL_ACCESS_RIGHTS}, i.e. will have {\f1\fs20 AllowRemoteExecute} parameter set to all possible flags.
@@ -13654,7 +13654,7 @@ Most web applications only need one runtime, since they are running in a single 
 This threading model is the big difference with other server-side scripting implementation schemes, e.g. the well-known {\f1\fs20 @*node.js@} solution.
 Multi-threading is not evil, when properly used. And thanks to the {\i mORMot}'s design, you won't be afraid of writing {\i blocking} JavaScript code, without any callbacks. In practice, those callbacks are what makes most {\i JavaScript} code difficult to maintain.
 On the client side, i.e. in a web browser, the {\i JavaScript} engine only uses one thread per web page, then uses callbacks to defer execution of long-running methods (like a remote HTTP request).\line If fact, this is one well identified performance issue of modern AJAX applications. For instance, it is not possible to perform some intensive calculation in {\i JavaScript}, without breaking the web application responsiveness: you have to split your computation task in small tasks, then let the {\i JavaScript} code pause, until a next piece of computation could be triggerred... On server side, {\f1\fs20 node.js} allows to define {\i Fibers} and {\i Futures} - see @http://github.com/laverdet/node-fibers - but this is not available on web clients. Some browsers did only start to uncouple the {\i JavaScript} execution thread from the HTML rendering thread - and even this is hard to implement... we reached here the limit of a technology rooted in the 80's...
-On the server side, {\f1\fs20 node.js} did follow this pattern, which did make sense (it allows to share code with the client side, with some name-space tricks), but it is also IMHO a big waste of resources. Why should we stick to an implementation pattern inherited from the 80's computing model, when all CPUs were mono core, and threads were not available?
+On the server side, {\f1\fs20 node.js} did follow this pattern, which did make sense (it allows to share code with the client side, with some name-space tricks), but it is also a big waste of resources. Why should we stick to an implementation pattern inherited from the 80's computing model, when all CPUs were mono core, and threads were not available?
 The main problem when working with one single thread, is that your code shall be asynchronous. Soon or later, you will face a syndrome known as "{\i Callback Hell}". In short, you are nesting anonymous functions, and define callbacks. The main issue, in addition to lower readability and being potentially sunk into {\f1\fs20 function()} nesting, is that you just lost the {\i JavaScript} exception model. In fact, each callback function has to explicitly check for the error (returned as a parameter in the callback function), and handle it.
 Of course, you can use so-called {\i Promises} and some nice libraries - mainly {\f1\fs20 async.js}.\line But even those libraries add complexity, and make code more difficult to write. For instance, consider the following non-blocking/asynchronous code:
 #getTweetsFor("domenic") // promise-returning function
@@ -14157,7 +14157,7 @@ We may argue that {\f1\fs20 IDomUserCommand} inheriting from {\f1\fs20 IDomUserQ
 \Write Operations\Error Handling
 \Read Operations\Error Handling
 \
-Nothing prevent you from doing this. But in our case, especially with the {\i mORMot} underlying ORM, or a RDBMS database, the benefit is not obvious - sounds more like a dogmatic approach. To {\i update} a resource, you will need two interfaces: one {\f1\fs20 IDomUserQuery} instance to retrieve the existing value object, then one {\f1\fs20 IDomUserCommand} to modify it. From our pragmatic point of view, it is not mandatory. Also note that {\f1\fs20 interface} inheritance may differ from actual implementation {\f1\fs20 class} inheritance. {\f1\fs20 IDomUserCommand} may inherit from {\f1\fs20 IDomUserQuery}, but, e.g. if performance matters, you may still be able to implement a plain {\f1\fs20 IDomUserQuery} service with a dedicated {\f1\fs20 class}, on a separated database. In our case, {\f1\fs20 interface} inheritance is a common way of increasing code reuse. So if you want to be dogmatic about CQRS, you could - but IMHO only if it is worth the effort.
+Nothing prevent you from doing this. But in our case, especially with the {\i mORMot} underlying ORM, or a RDBMS database, the benefit is not obvious - sounds more like a dogmatic approach. To {\i update} a resource, you will need two interfaces: one {\f1\fs20 IDomUserQuery} instance to retrieve the existing value object, then one {\f1\fs20 IDomUserCommand} to modify it. From our pragmatic point of view, it is not mandatory. Also note that {\f1\fs20 interface} inheritance may differ from actual implementation {\f1\fs20 class} inheritance. {\f1\fs20 IDomUserCommand} may inherit from {\f1\fs20 IDomUserQuery}, but, e.g. if performance matters, you may still be able to implement a plain {\f1\fs20 IDomUserQuery} service with a dedicated {\f1\fs20 class}, on a separated database. In our case, {\f1\fs20 interface} inheritance is a common way of increasing code reuse. So if you want to be dogmatic about CQRS, you could - but only if it is worth the effort.
 :    Queries Interface
 Since we will separate queries and commands, we will first define the interface for actually reading {\f1\fs20 TUser} information:
 !type
@@ -14969,7 +14969,7 @@ The screen is divided into three main spaces:
 - On the right side, the log events list;
 - On the middle, an optional list of method calls, and another list of threads (not shown by default).
 The command panel allows to {\i Browse} your disk for a {\f1\fs20 .log} file. This button is a toggle of an optional {\i Drive / Directory / File} panel on the leftmost side of the tool. When a {\f1\fs20 .log / .synlz / .txt} file is selected, its content is immediately displayed. You can specify a directory name as a parameter of the tool (e.g. in a {\f1\fs20 .lnk} desktop link), which will let the viewer be opened in "Browse" mode, starting with the specified folder.
-A button gives access to the global {\i Stats} about its content (customer-side hardware and software running configuration, general numbers about the log), and even ask for a source code line number and unit name from a hexadecimal address available in the log, by browsing for the corresponding {\f1\fs20 .map} file (could be handy if you did not deliver the {\f1\fs20 .map} content within your main executable - which you should have to, IMHO).
+A button gives access to the global {\i Stats} about its content (customer-side hardware and software running configuration, general numbers about the log), and even ask for a source code line number and unit name from a hexadecimal address available in the log, by browsing for the corresponding {\f1\fs20 .map} file (could be handy if you did not deliver the {\f1\fs20 .map} content within your main executable - which you should have to).
 Just below the "{\i Browse}" button, there is an edit field available, with a ? button. Enter any text within this edit field, and it will be searched within the log events list. Search is case-insensitive, and was designed to be fast. Clicking on the ? button (or pressing the {\f1\fs20 F3} key) allows to repeat the last search.
 In the very same left panel, you can see all existing events, with its own color and an associated check-box. Note that only events really encountered in the {\f1\fs20 .log} file appear in this list, so its content will change between log files. By selecting / un-selecting a check-box, the corresponding events will be instantaneously displayed / or not on the right side list of events. You can right click on the events check-box list to select a predefined set of events.
 The right colored event list follows the events appended to the log, by time order. When you click on an event, its full line content is displayed at the bottom on the screen, in a memo.
@@ -15063,7 +15063,7 @@ Therefore, {\f1\fs20 sqlite3.obj} and {\f1\fs20 sqlite3fts.obj} files are availa
 Please download the latest compiled version of these {\f1\fs20 .obj} files from this link. You can also use the supplied {\f1\fs20 c.bat} file to compile from the original {\f1\fs20 sqlite3.c} file available in the repository, if you have the {\f1\fs20 bcc32} C command-line compiler installed.
 The free version works and was used to create both {\f1\fs20 .obj} files, i.e. {\i C++Builder Compiler (bcc compiler) free download} - as available from {\i Embarcadero} web site.
 For native {\i Windows} @*64-bit@ applications (since {\i Delphi} XE2), an external {\f1\fs20 .dll} file is needed. Since there is no official {\i SQLite3} download for {\i Win64} yet, you can use the one we supply at @http://synopse.info/files/SQLite3-64.7z
-For FPC, you can download both {\f1\fs20 Win32} and {\i Linux 32} {\f1\fs20 .o} files from @http://synopse.info/files/sqlite3fpc.7z then uncompress both embedded folders at the {\i mORMot} root folder (i.e. where {\f1\fs20 Synopse.inc} or {\f1\fs20 SynCommons.pas} stay). Those static files have been patched to support optional encryption of the {\i SQLite3} database file. Then enable the {\f1\fs20 FPCSQLITE3STATIC} conditional in your project, or directly modify {\f1\fs20 Synopse.inc} to include it, so that those {\f1\fs20 .o} files will be statically linked to the executable.
+For FPC, you need to download both {\f1\fs20 Win32} and {\i Linux 32} {\f1\fs20 .o} files from @http://synopse.info/files/sqlite3fpc.7z then uncompress both embedded folders at the {\i mORMot} root folder (i.e. where {\f1\fs20 Synopse.inc} or {\f1\fs20 SynCommons.pas} stay). Those static files have been patched to support optional encryption of the {\i SQLite3} database file. Then enable the {\f1\fs20 FPCSQLITE3STATIC} conditional in your project, or directly modify {\f1\fs20 Synopse.inc} to include it, so that those {\f1\fs20 .o} files will be statically linked to the executable.
 You could also compile the static libraries from the {\f1\fs20 sqlite3.c} source, to run with FPC - do not forget to enable the {\f1\fs20 FPCSQLITE3STATIC} conditional in this case also.\line Under {\i Windows}, ensure the {\i MinGW} compiler is installed, then execute {\f1\fs20 c-fpcmingw.bat} from the {\i SQLite3} folder. It will create the {\f1\fs20 sqlite3.o} and {\f1\fs20 sqlite3fts.o} files, as expected by FPC.\line Under {\i @*Linux@}, Use the {\f1\fs20 c-fpcgcclin.sh} bash script.
 :  SpiderMonkey library
 To enable {\i @*JavaScript@} support in {\i mORmot}, we rely on our version of the {\i @*SpiderMonkey@} library. See @79@.
@@ -15105,6 +15105,7 @@ In the {\i Root folder}, some common files are defined:
 |{\f1\fs20 SynCrtSock.pas}|classes implementing @*HTTP@/1.1 client and server protocol
 |{\f1\fs20 SynCrypto.pas}|fast cryptographic routines (hashing and cypher)
 |{\f1\fs20 SynDprUses.inc}|generic header included in the beginning of the uses clause of a .dpr source code
+|{\f1\fs20 SynEcc.pas}|certificate-based public-key cryptography using ECC-secp256r1
 |{\f1\fs20 SynGdiPlus.pas}|GDI+ library API access with anti-aliasing drawing
 |{\f1\fs20 SynLog.pas}|logging functions used by most Synopse projects
 |{\f1\fs20 SynLZ.pas}|@**SynLZ@ compression decompression unit - used by {\f1\fs20 SynCommons.pas}
@@ -15199,7 +15200,7 @@ Download and uncompress the framework archives, including all sub-folders, into 
 |{\b Static 32-bit SQLite3 .obj files}\line\tab @http://synopse.info/files/sqlite3obj.7z \line\tab into {\f1\fs20 D:\\Dev\\Lib\\SQLite3\\}
 |{\b 64-bit SQlite3 library}\line\tab @http://synopse.info/files/SQLite3-64.7z \line\tab into your Win64 {\f1\fs20 .exe} folders
 |{\b 32-bit SpiderMonkey library}\line\tab @http://synopse.info/files/synsm.7z \line\tab into your {\f1\fs20 .exe} folders needing JavaScript
-|{\b for FPC only: static {\i SQLite3} .o files for Windows or Linux}\line\tab @http://synopse.info/files/sqlite3fpc.7z \line\tab two folders into {\f1\fs20 D:\\Dev\\Lib\\}
+|{\b for FPC only: static {\f1\fs20 .o} files for Windows or Linux}\line\tab @http://synopse.info/files/sqlite3fpc.7z \line\tab two folders into {\f1\fs20 D:\\Dev\\Lib\\}
 |%
 Please, read the {\f1\fs20 ReadMe.txt} file content supplied with the package! RTFM!
 In short, add the following paths to your {\i Delphi} IDE (in {\i Tools/Environment/Library} menu):
@@ -15219,7 +15220,7 @@ You should better use the latest SVN trunk version of the FPC 2.7.1 / 3.1.1 comp
 If you want to use @80@, ensure that your revision includes the fix for @http://mantis.freepascal.org/view.php?id=26773 bug, i.e. newer than revision 28995 from 2014-11-05T22:17:54. This bug has not been fixed in 2.6.4 branch.
 We recommend using the @*fpcup@ tool, as published at @http://wiki.freepascal.org/fpcup \line To compile the latest svn version of the trunk, just write:
 $fpcup.exe --fpcURL="trunk" --lazURL="trunk"
-Then ensure you set the static {\i SQlite3} .o files for {\i Windows} or {\i Linux} in the right folder, as stated about the @113@.
+Then ensure you downloaded and set the static {\f1\fs20 .o} files for {\i Windows} or {\i Linux} in the right folder, as stated about the @113@. Those {\f1\fs20 .o} files are needed not only for {\i SQlite3} static linking, but also for the {\f1\fs20 @*SynEcc@} linking.
 :  Creating the missing RTTI for interfaces
 Sadly, we have to face some unresolved FPC compiler-level issue, which does not supply the needed {\f1\fs20 interface} RTTI - see @http://bugs.freepascal.org/view.php?id=26774
 As a result, SOA, mock/stub and MVC features will not work directly with FPC trunk. There is a private branch including the needed RTTI, but it has not been merged to the trunk yet.\line In the meanwihle, we propose a workaround to compile such applications with FPC. You could use Delphi to generate one unit containing the needed information.

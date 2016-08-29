@@ -47,7 +47,7 @@ unit SynSQLite3;
   ***** END LICENSE BLOCK *****
 
 
-       SQLite3 3.13.0 database engine
+       SQLite3 3.14.1 database engine
       ********************************
 
      Brand new SQLite3 library to be used with Delphi
@@ -135,7 +135,7 @@ unit SynSQLite3;
   - moved all static .obj code into new SynSQLite3Static unit
   - allow either static .obj use via SynSQLite3Static or external .dll linking
     using TSQLite3LibraryDynamic to bind all APIs to the global sqlite3 variable
-  - updated SQLite3 engine to latest version 3.13.0
+  - updated SQLite3 engine to latest version 3.14.1
   - fixed: internal result cache is now case-sensitive for its SQL key values
   - raise an ESQLite3Exception if DBOpen method is called twice
   - added TSQLite3ErrorCode enumeration and sqlite3_resultToErrorCode()
@@ -1140,10 +1140,35 @@ type
   TSQLCommitCallback = function(pArg: Pointer): Integer; {$ifndef SQLITE3_FASTCALL}cdecl;{$endif}
 
 
-  /// Callback function registered by sqlite3.trace()
-  // - this procedure will be invoked at various times when an SQL statement is
-  // being run by sqlite3.step()
-  TSQLTraceCallback = procedure(TraceArg: Pointer; Trace: PUTF8Char);
+  /// events monitored by sqlite3.trace_v2() tracing logic
+  // - stmStmt callback is invoked when a prepared statement first begins
+  // running and possibly at other times during the execution of the prepared
+  // statement, such as at the start of each trigger subprogram. The P argument
+  // is a pointer to the prepared statement. The X argument is a pointer to a
+  // string which is the unexpanded SQL text of the prepared statement or an
+  // SQL comment that indicates the invocation of a trigger.
+  // - stmProfile callback provides approximately the same information as was
+  // provided by the deprecated sqlite3.profile() callback. The P argument is
+  // a pointer to the prepared statement and the X argument points to a 64-bit
+  // integer which is the estimated of the number of nanosecond that the
+  // prepared statement took to run. The stmProfile callback is invoked when
+  // the statement finishes.
+  // - stmRow callback is invoked whenever a prepared statement generates
+  // a single row of result. The P argument is a pointer to the prepared
+  // statement and the X argument is unused.
+  // - stmClose callback is invoked when a database connection closes. The
+  // P argument is a pointer to the database connection object and the X
+  // argument is unused.
+  TSQLTraceMask = set of (stmStmt, stmProfile, stmRow, stmClose);
+
+  /// Callback function registered by sqlite3.trace_v2()
+  // - the Trace argument has one of the TSQLTraceMask items set, to indicate
+  // why the callback was invoked
+  // - UserData argument is a copy of the context pointer, as provided at
+  // sqlite3.trace_v2() call
+  // - P and X arguments are pointers whose meanings depend on Trace content:
+  // see TSQLTraceMask for the various use cases
+  TSQLTraceCallback = procedure(Trace: TSQLTraceMask; UserData,P,X: pointer);
     {$ifndef SQLITE3_FASTCALL}cdecl;{$endif}
 
   /// Callback function registered by sqlite3.profile()
@@ -1258,7 +1283,7 @@ type
     close: function(DB: TSQLite3DB): integer; {$ifndef SQLITE3_FASTCALL}cdecl;{$endif}
 
     /// Return the version of the SQLite database engine, in ascii format
-    // - currently returns '3.13.0', when used with our SynSQLite3Static unit
+    // - currently returns '3.14.1', when used with our SynSQLite3Static unit
     // - if an external SQLite3 library is used, version may vary
     // - you may use the VersionText property (or Version for full details) instead
     libversion: function: PUTF8Char; {$ifndef SQLITE3_FASTCALL}cdecl;{$endif}
@@ -1318,7 +1343,7 @@ type
 
     /// add SQL functions or aggregates or to redefine the behavior of existing
     // SQL functions or aggregates, including destruction
-    // - if the additinal xDestroy parameter is not NULL, then it is invoked when
+    // - if the additinal xDestroy parameter is not nil, then it is invoked when
     // the function is deleted, either by being overloaded or when the database
     // connection closes.
     // - When the destructure callback of the tenth parameter is invoked, it is
@@ -1359,10 +1384,10 @@ type
     /// Register A Callback To Handle SQLITE_BUSY Errors
     // - This routine sets a callback function that might be invoked whenever an
     // attempt is made to open a database table that another thread or process has locked.
-    // - If the busy callback is NULL, then SQLITE_BUSY or SQLITE_IOERR_BLOCKED is
+    // - If the busy callback is nil, then SQLITE_BUSY or SQLITE_IOERR_BLOCKED is
     // returned immediately upon encountering the lock. If the busy callback is not
-    // NULL, then the callback might be invoked with two arguments.
-    // - The default busy callback is NULL.
+    // nil, then the callback might be invoked with two arguments.
+    // - The default busy callback is nil.
     busy_handler: function(DB: TSQLite3DB;
       CallbackPtr: TSQLBusyHandler; user: Pointer): integer;  {$ifndef SQLITE3_FASTCALL}cdecl;{$endif}
 
@@ -1631,7 +1656,7 @@ type
     // callback of the aggregate function implementation is never called and xFinal()
     // is called exactly once. In those cases, sqlite3.aggregate_context() might be
     // called for the first time from within xFinal().
-    // - The sqlite3.aggregate_context(C,N) routine returns a NULL pointer if N is
+    // - The sqlite3.aggregate_context(C,N) routine returns a nil pointer if N is
     // less than or equal to zero or if a memory allocate error occurs.
     // - The amount of space allocated by sqlite3.aggregate_context(C,N) is
     // determined by the N parameter on first successful call. Changing the value
@@ -1877,28 +1902,12 @@ type
 
     /// Register callback function that can be used for tracing the execution of
     // SQL statements
-    // - The callback function registered by sqlite3.trace() is invoked at various
-    // times when an SQL statement is being run by sqlite3.step(). The sqlite3.trace()
-    // callback is invoked with a UTF-8 rendering of the SQL statement text as the
-    // statement first begins executing. Additional sqlite3.trace() callbacks might
-    // occur as each triggered subprogram is entered. The callbacks for triggers
-    // contain a UTF-8 SQL comment that identifies the trigger.
-    trace: function(DB: TSQLite3DB; Callback: TSQLTraceCallback;
-      UserData: Pointer): Pointer; {$ifndef SQLITE3_FASTCALL}cdecl;{$endif}
-
-    /// Register callback function that can be used for tracing the execution of
-    // SQL statements
-    // - The callback function registered by sqlite3.profile() is invoked as
-    // each SQL statement finishes. The profile callback contains the original
-    // statement text and an estimate of wall-clock time of how long that
-    // statement took to run. The profile callback time is in units of
-    // nanoseconds, however the current implementation is only capable
-    // of millisecond resolution so the six least significant digits in the time
-    // are meaningless. Future versions of SQLite might provide greater resolution
-    // on the profiler callback.
-    // - The sqlite3.profile() function is considered experimental and is subject
-    // to change in future versions of SQLite.
-    profile: function(DB: TSQLite3DB; Callback: TSQLProfileCallback;
+    // - registers a trace callback function Callback against database connection
+    // DB, using property mask TSQLTraceMask and context pointer UserData
+    // - if the Callback parameter is nil or if the TSQLTraceMask mask is zero,
+    // then tracing is disabled
+    // - parameters of the Callback functions depend of the TSQLTraceMask involved
+    trace_v2: function(DB: TSQLite3DB; Mask: TSQLTraceMask; Callback: TSQLTraceCallback;
       UserData: Pointer): Pointer; {$ifndef SQLITE3_FASTCALL}cdecl;{$endif}
 
     /// Allows the size of various constructs to be limited on a connection
@@ -3344,46 +3353,28 @@ end;
 
 function Utf16SQLCompCase(CollateParam: pointer; s1Len: integer; S1: pointer;
     s2Len: integer; S2: pointer) : integer; {$ifndef SQLITE3_FASTCALL}cdecl;{$endif}
-{$ifndef MSWINDOWS}
-var W1,W2: WideString;
-{$endif}
 begin
   if s1Len<=0 then
     if s2Len<=0 then
       result := 0 else
       result := -1 else
   if s2Len<=0 then
-    result := 1 else begin
-    {$ifdef MSWINDOWS}
-    result := CompareStringW(GetThreadLocale,0,S1,s1len shr 1,S2,s2Len shr 1)-2;
-    {$else} // cross-platform but slower version using two temporary WideString
-    SetString(W1,PWideChar(S1),s1len shr 1);
-    SetString(W2,PWideChar(S2),s2len shr 1);
-    result := WideCompareStr(W1,W2); // use OS string comparison API
-    {$endif}
-  end;
+    result := 1 else
+    result := CompareStringW(
+      LOCALE_USER_DEFAULT,0,S1,s1len shr 1,S2,s2Len shr 1)-2;
 end;
 
 function Utf16SQLCompNoCase(CollateParam: pointer; s1Len: integer; s1: pointer;
     s2Len: integer; s2: pointer) : integer; {$ifndef SQLITE3_FASTCALL}cdecl;{$endif}
-{$ifndef MSWINDOWS}
-var W1,W2: WideString;
-{$endif}
 begin
   if s1Len<=0 then
     if s2Len<=0 then
       result := 0 else
       result := -1 else
   if s2Len<=0 then
-    result := 1 else begin
-    {$ifdef MSWINDOWS}
-    result := CompareStringW(GetThreadLocale,NORM_IGNORECASE,S1,s1len shr 1,S2,s2Len shr 1)-2;
-    {$else} // cross-platform but slower version using two temporary WideString
-    SetString(W1,PWideChar(S1),s1len shr 1);
-    SetString(W2,PWideChar(S2),s2len shr 1);
-    result := WideCompareText(W1,W2); // use OS string comparison API
-    {$endif}
-  end;
+    result := 1 else
+    result := CompareStringW(
+      LOCALE_USER_DEFAULT,NORM_IGNORECASE,S1,s1len shr 1,S2,s2Len shr 1)-2;
 end;
 
 function Utf8SQLCompNoCase(CollateParam: pointer; s1Len: integer; s1: pointer;
@@ -3573,6 +3564,11 @@ var MI: PFTSMatchInfo;
 begin
   if argc>=1 then begin
     MI := sqlite3.value_blob(argv[0]);
+    // rank(nil) for example select rank(matchinfo(tabName)) without corresponding MATCH clause
+    if MI=nil then begin
+       sqlite3.result_double(Context,0);
+       exit;
+    end;
     if argc=MI^.nCol+1 then begin
       score := 0;
       for p := 1 to MI^.nPhrase do
@@ -5682,7 +5678,7 @@ end;
 { TSQLite3LibraryDynamic }
 
 const
-  SQLITE3_ENTRIES: array[0..86] of TFileName =
+  SQLITE3_ENTRIES: array[0..85] of TFileName =
   ('initialize','shutdown','open','open_v2','key','rekey','close',
    'libversion','errmsg','extended_errcode',
    'create_function','create_function_v2',
@@ -5699,7 +5695,7 @@ const
    'blob_open','blob_close','blob_read','blob_write','blob_bytes',
    'create_module_v2','declare_vtab','set_authorizer','update_hook',
    'commit_hook','rollback_hook','changes','total_changes','malloc', 'realloc',
-   'free','memory_used','memory_highwater','trace','profile','limit',
+   'free','memory_used','memory_highwater','trace_v2','limit',
    'backup_init','backup_step','backup_finish','backup_remaining',
    'backup_pagecount','config');
 

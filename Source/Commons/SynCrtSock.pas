@@ -280,22 +280,26 @@ const
   // - should match NORESPONSE_CONTENT_TYPE constant defined in mORMot.pas unit
   HTTP_RESP_NORESPONSE = '!NORESPONSE';
 
+var
   /// THttpRequest timeout default value for DNS resolution
   // - leaving to 0 will let system default value be used
-  HTTP_DEFAULT_RESOLVETIMEOUT = 0;
+  HTTP_DEFAULT_RESOLVETIMEOUT: integer = 0;
   /// THttpRequest timeout default value for remote connection
   // - default is 60 seconds
-  HTTP_DEFAULT_CONNECTTIMEOUT = 60000;
+  // - used e.g. by THttpRequest, TSQLHttpClientRequest and TSQLHttpClientGeneric
+  HTTP_DEFAULT_CONNECTTIMEOUT: integer = 60000;
   /// THttpRequest timeout default value for data sending
   // - default is 30 seconds
+  // - used e.g. by THttpRequest, TSQLHttpClientRequest and TSQLHttpClientGeneric
   // - you can override this value by setting the corresponding parameter in
   // THttpRequest.Create() constructor
-  HTTP_DEFAULT_SENDTIMEOUT = 30000;
+  HTTP_DEFAULT_SENDTIMEOUT: integer = 30000;
   /// THttpRequest timeout default value for data receiving
   // - default is 30 seconds
+  // - used e.g. by THttpRequest, TSQLHttpClientRequest and TSQLHttpClientGeneric
   // - you can override this value by setting the corresponding parameter in
   // THttpRequest.Create() constructor
-  HTTP_DEFAULT_RECEIVETIMEOUT = 30000;
+  HTTP_DEFAULT_RECEIVETIMEOUT: integer = 30000;
 
 type
 {$ifdef UNICODE}
@@ -315,6 +319,9 @@ type
 {$endif}
   /// points to a 8-bit raw storage variable, used for data buffer management
   PSockString = ^SockString;
+
+  /// defines a dynamic array of SockString
+  TSockStringDynArray = array of SockString;
 
 {$ifdef DELPHI5OROLDER}
   // not defined in Delphi 5 or older
@@ -715,7 +722,10 @@ type
   public
     /// common initialization of all constructors
     // - this overridden method will set the UserAgent with some default value
-    constructor Create(aTimeOut: cardinal=10000); override;
+    // - you can customize the default client timeouts by setting appropriate
+    // aTimeout parameters (in ms) if you left the 0 default parameters,
+    // it would use global HTTP_DEFAULT_RECEIVETIMEOUT variable values
+    constructor Create(aTimeOut: cardinal=0); override;
     /// low-level HTTP/1.1 request
     // - called by all Get/Head/Post/Put/Delete REST methods
     // - after an Open(server,port), return 200,202,204 if OK, http status error otherwise
@@ -1546,13 +1556,13 @@ type
     // SendTimeout and ReceiveTimeout parameters (in ms) - note that after
     // creation of this instance, the connection is tied to the initial
     // parameters, so we won't publish any properties to change those
-    // initial values once created
+    // initial values once created - if you left the 0 default parameters, it
+    // would use global HTTP_DEFAULT_CONNECTTIMEOUT, HTTP_DEFAULT_SENDTIMEOUT
+    // and HTTP_DEFAULT_RECEIVETIMEOUT variable values
     // - aProxyName and *TimeOut parameters are currently ignored by TCurlHttp
     constructor Create(const aServer, aPort: SockString; aHttps: boolean;
       const aProxyName: SockString=''; const aProxyByPass: SockString='';
-      ConnectionTimeOut: DWORD=HTTP_DEFAULT_CONNECTTIMEOUT;
-      SendTimeout: DWORD=HTTP_DEFAULT_SENDTIMEOUT;
-      ReceiveTimeout: DWORD=HTTP_DEFAULT_RECEIVETIMEOUT); virtual;
+      ConnectionTimeOut: DWORD=0; SendTimeout: DWORD=0; ReceiveTimeout: DWORD=0); virtual;
 
     /// low-level HTTP/1.1 request
     // - after an Create(server,port), return 200,202,204 if OK,
@@ -1855,10 +1865,15 @@ function HttpGet(const aURI: SockString;
 /// send some data to a remote web server, using the HTTP/1.1 protocol and POST method
 function HttpPost(const server, port: SockString; const url, Data, DataType: SockString): boolean;
 
+const
+  /// the layout of TSMTPConnection.FromText method
+  SMTP_DEFAULT = 'user:password@smtpserver:port';
+
 type
   /// may be used to store a connection to a SMTP server
   // - see SendEmail() overloaded function
-  TSMTPConnection = record
+  TSMTPConnection = {$ifdef UNICODE}record{$else}object{$endif}
+  public
     /// the SMTP server IP or host name
     Host: SockString;
     /// the SMTP server port (25 by default)
@@ -1867,6 +1882,11 @@ type
     User: SockString;
     /// the SMTP user password (if any)
     Pass: SockString;
+    /// fill the STMP server information from a single text field
+    // - expects 'user:password@smtpserver:port' format
+    // - if aText equals SMTP_DEFAULT ('user:password@smtpserver:port'),
+    // does nothing
+    function FromText(const aText: SockString): boolean;
   end;
 
 /// send an email using the SMTP protocol
@@ -1894,23 +1914,23 @@ function SendEmail(const Server: TSMTPConnection;
 function SendEmailSubject(const Text: string): SockString;
 
 const
-  /// HTML Status Code for "Success"
+  /// HTTP Status Code for "Success"
   STATUS_SUCCESS = 200;
-  /// HTML Status Code for "Created"
+  /// HTTP Status Code for "Created"
   STATUS_CREATED = 201;
-  /// HTML Status Code for "No Content"
+  /// HTTP Status Code for "No Content"
   STATUS_NOCONTENT = 204;
-  /// HTML Status Code for "Bad Request"
+  /// HTTP Status Code for "Bad Request"
   STATUS_BADREQUEST = 400;
-  /// HTML Status Code for "Unauthorized"
+  /// HTTP Status Code for "Unauthorized"
   STATUS_UNAUTHORIZED = 401;
-  /// HTML Status Code for "Forbidden"
+  /// HTTP Status Code for "Forbidden"
   STATUS_FORBIDDEN = 403;
-  /// HTML Status Code for "Not Found"
+  /// HTTP Status Code for "Not Found"
   STATUS_NOTFOUND = 404;
-  /// HTML Status Code for "Internal Server Error"
+  /// HTTP Status Code for "Internal Server Error"
   STATUS_SERVERERROR = 500;
-  /// HTML Status Code for "Not Implemented"
+  /// HTTP Status Code for "Not Implemented"
   STATUS_NOTIMPLEMENTED = 501;
 
   {$ifdef MSWINDOWS}
@@ -1937,12 +1957,22 @@ function Base64Decode(const s: SockString): SockString;
 /// escaping of HTML codes like < > & "
 function HtmlEncode(const s: SockString): SockString;
 
-{$ifdef Win32}
+{$ifdef MSWINDOWS}
+
 /// remotly get the MAC address of a computer, from its IP Address
 // - only works under Win2K and later
 // - return the MAC address as a 12 hexa chars ('0050C204C80A' e.g.)
 function GetRemoteMacAddress(const IP: SockString): SockString;
-{$endif}
+
+/// enumerate all IP addresses of the current computer
+// - may be used to enumerate all adapters
+function GetIPAddresses: TSockStringDynArray;
+
+/// returns all IP addresses of the current computer as a single CSV text 
+// - may be used to enumerate all adapters
+function GetIPAddressesText(const Sep: SockString = ' '): SockString;
+
+{$endif MSWINDOWS}
 
 /// low-level text description of  Socket error code
 function SocketErrorMessage(Error: integer): string;
@@ -2631,7 +2661,16 @@ begin
   result := '';
 end;
 
-{$ifdef Win32}
+procedure IP4Text(addr: TInAddr; var result: SockString);
+var b: array[0..3] of byte absolute addr;
+begin
+  if cardinal(addr)=0 then
+    result := '' else
+    result := SockString(Format('%d.%d.%d.%d',[b[0],b[1],b[2],b[3]]))
+end;
+
+{$ifdef MSWINDOWS}
+
 function GetRemoteMacAddress(const IP: SockString): SockString;
 // implements http://msdn.microsoft.com/en-us/library/aa366358
 type
@@ -2670,7 +2709,54 @@ begin
     FreeLibrary(SendARPLibHandle);
   end;
 end;
-{$endif}
+
+type
+  PMIB_IPADDRTABLE = ^MIB_IPADDRTABLE;
+  MIB_IPADDRTABLE = record
+    dwNumEntries: DWORD;
+    ip: array[0..200] of record
+      dwAddr: DWORD;
+      dwIndex: DWORD;
+      dwMask: DWORD;
+      dwBCastAddr: DWORD;
+      dwReasmSize: DWORD;
+      unused1: Word;
+      wType: Word;
+    end;
+  end;
+
+function GetIpAddrTable(pIpAddrTable: PMIB_IPADDRTABLE;
+  var pdwSize: DWORD; bOrder: BOOL): DWORD; stdcall; external 'iphlpapi.dll';
+
+function GetIPAddresses: TSockStringDynArray;
+var Table: MIB_IPADDRTABLE;
+    Size: DWORD;
+    i: integer;
+begin
+  result := nil;
+  Size := SizeOf(Table);
+  if GetIpAddrTable(@Table,Size,false)<>NO_ERROR then
+    exit;
+  SetLength(result,Table.dwNumEntries);
+  for i := 0 to Table.dwNumEntries-1 do
+    IP4Text(TInAddr(Table.ip[i].dwAddr),result[i]);
+end;
+
+function GetIPAddressesText(const Sep: SockString = ' '): SockString;
+var ip: TSockStringDynArray;
+    i: integer;
+begin
+  ip := GetIPAddresses;
+  if ip=nil then begin
+    result := '';
+    exit;
+  end;
+  result := ip[0];
+  for i := 1 to high(ip) do
+    result := result+Sep+ip[i];
+end;
+
+{$endif MSWINDOWS}
 
 {$ifndef NOXPOWEREDNAME}
 const
@@ -2963,19 +3049,27 @@ end;
 
 { TCrtSocket }
 
+function Split(const Text: SockString; Sep: AnsiChar; var Before,After: SockString): boolean;
+var i: integer;
+begin
+  for i := length(Text)-1 downto 2 do
+    if Text[i]=Sep then begin
+      Before := trim(copy(Text,1,i-1));
+      After := trim(copy(Text,i+1,maxInt));
+      result := true;
+      exit;
+    end;
+  result := false;
+end;
+
 constructor TCrtSocket.Bind(const aPort: SockString; aLayer: TCrtSocketLayer=cslTCP);
 var s,p: SockString;
-    i: integer;
 begin
   // on Linux, Accept() blocks even after Shutdown() -> use 0.5 second timeout
   Create({$ifdef LINUX}500{$else}5000{$endif});
-  i := pos({$ifdef HASCODEPAGE}SockString{$endif}(':'),aPort);
-  if i=0 then begin
+  if not Split(aPort,':',s,p) then begin
     s := '0.0.0.0';
     p := aPort;
-  end else begin
-    s := Copy(aPort,1,i-1);
-    p := Copy(aPort,i+1,10);
   end;
   OpenBind(s,p,true,-1,aLayer); // raise an ECrtSocket exception on error
 end;
@@ -3284,11 +3378,14 @@ begin
     exit;
   if (Buffer<>nil) and (Length>0) then begin
     endtime := GetTickCount+TimeOut;
-    repeat
+    repeat                                         
       Size := Recv(Sock, Buffer, Length, MSG_NOSIGNAL
         {$ifndef MSWINDOWS}{$ifdef FPC_OR_KYLIX},TimeOut{$endif}{$endif});
-      if Size<=0 then
+      if Size<=0 then begin
+        if Size=0 then
+          Close; // socket closed gracefully (otherwise SOCKET_ERROR=-1) 
         exit;
+      end;
       inc(fBytesIn,Size);
       dec(Length,Size);
       inc(PByte(Buffer),Size);
@@ -3408,14 +3505,6 @@ begin
   result := GetPeerName(Sock,Sin)=0;
 end;
 
-procedure IP4Text(addr: TInAddr; var result: SockString);
-var b: array[0..3] of byte absolute addr;
-begin
-  if cardinal(addr)=0 then
-    result := '' else
-    result := SockString(Format('%d.%d.%d.%d',[b[0],b[1],b[2],b[3]]))
-end;
-
 function TCrtSocket.PeerAddress: SockString;
 begin
   IP4Text(fPeerAddr.sin_addr,result);
@@ -3469,6 +3558,8 @@ end;
 
 constructor THttpClientSocket.Create(aTimeOut: cardinal);
 begin
+  if aTimeOut=0 then
+    aTimeOut := HTTP_DEFAULT_RECEIVETIMEOUT;
   inherited Create(aTimeOut);
   UserAgent := DefaultUserAgent(self);
 end;
@@ -3619,7 +3710,7 @@ end;
 function OpenHttp(const aServer, aPort: SockString): THttpClientSocket;
 begin
   try
-    result := THttpClientSocket.Open(aServer,aPort);
+    result := THttpClientSocket.Open(aServer,aPort,cslTCP,0); // HTTP_DEFAULT_RECEIVETIMEOUT
   except
     on ECrtSocket do
       result := nil;
@@ -3678,6 +3769,27 @@ begin
   finally
     Http.Free;
   end;
+end;
+
+function TSMTPConnection.FromText(const aText: SockString): boolean;
+var u,h: SockString;
+begin
+  if aText=SMTP_DEFAULT then begin
+    result := false;
+    exit;
+  end;
+  if Split(aText,'@',u,h) then begin
+    if not Split(u,':',User,Pass) then
+      User := u;
+  end else
+    h := aText;
+  if not Split(h,':',Host,Port) then begin
+    Host := h;
+    Port := '25';
+  end;
+  if (Host<>'') and (Host[1]='?') then
+    Host := '';
+  result := Host<>'';
 end;
 
 function SendEmail(const Server: TSMTPConnection;
@@ -6798,8 +6910,8 @@ begin
   result := RegisterCompressFunc(fCompress,aFunction,fCompressAcceptEncoding,aCompressMinSize)<>'';
 end;
 
-constructor THttpRequest.Create(const aServer, aPort: SockString; aHttps: boolean;
-  const aProxyName,aProxyByPass: SockString;
+constructor THttpRequest.Create(const aServer, aPort: SockString;
+  aHttps: boolean; const aProxyName,aProxyByPass: SockString;
   ConnectionTimeOut,SendTimeout,ReceiveTimeout: DWORD);
 begin
   fPort := GetCardinal(pointer(aPort));
@@ -6812,6 +6924,12 @@ begin
   fProxyName := aProxyName;
   fProxyByPass := aProxyByPass;
   fUserAgent := DefaultUserAgent(self);
+  if ConnectionTimeOut=0 then
+    ConnectionTimeOut := HTTP_DEFAULT_CONNECTTIMEOUT;
+  if SendTimeout=0 then
+    SendTimeout := HTTP_DEFAULT_SENDTIMEOUT;
+  if ReceiveTimeout=0 then
+    ReceiveTimeout := HTTP_DEFAULT_RECEIVETIMEOUT;
   InternalConnect(ConnectionTimeOut,SendTimeout,ReceiveTimeout); // raise an exception on error
 end;
 

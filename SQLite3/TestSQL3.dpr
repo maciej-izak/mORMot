@@ -98,6 +98,7 @@ uses
   SynLZ in '..\SynLZ.pas',
   SynLZO in '..\SynLZO.pas',
   SynCrypto in '..\SynCrypto.pas',
+  SynEcc in '..\SynEcc.pas',
   SynCrtSock in '..\SynCrtSock.pas',
   SynBidirSock in '..\SynBiDirSock.pas',
   SynCommons in '..\SynCommons.pas',
@@ -145,7 +146,11 @@ uses
   {$endif FPC}
 {$endif DELPHI5OROLDER}
 {$ifndef LVCL}
-{$ifndef FPC}
+{$ifdef FPC}
+{$ifdef WIN64}
+  SynZLibSSE in '..\SynZLibSSE.pas',
+{$endif}
+{$else}
   SynPdf in '..\SynPdf.pas',
   SynGdiPlus in '..\SynGdiPlus.pas',
 {$endif FPC}

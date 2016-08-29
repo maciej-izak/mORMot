@@ -317,8 +317,16 @@ cd "%samples%31 - WebSockets"
 echo.
 echo %CD%
 %DCC% Project31SimpleEchoServer.dpr %Switches%
+@if errorlevel 1 pause
 %DCC% Project31LongWorkClient.dpr %Switches%
+@if errorlevel 1 pause
 %DCC% Project31LongWorkServer.dpr %Switches%
+@if errorlevel 1 pause
+
+cd "%samples%33 - ECC"
+echo.
+echo %CD%
+%DCC% ECC.dpr %Switches%
 @if errorlevel 1 pause
 
 
@@ -346,7 +354,7 @@ del /q %bin%\exe\*.map %bin%\exe\*.drc
 echo.
 echo Running automated tests for mORMot
 %bin%\exe\TestSQL3 "%DelphiVersion% "
-@if errorlevel 1 echo "Some test fails. See "%bin%\%DelphiVersion% Synopse mORMot Framework Automated tests.txt" for details"
+@if errorlevel 1 echo "Some test fails. See "%bin%\exe\%DelphiVersion% Synopse mORMot Framework Automated tests.txt" for details"
 
 :NoDCCCompiler
 cd %mORMot%

@@ -385,6 +385,8 @@ type
   TSynLogRotateEvent = function(aLog: TSynLog; const aOldLogFileName: TFileName): boolean;
 
   /// how threading is handled by the TSynLogFamily
+  // - proper threading expects the TSynLog.NotifyThreadEnded method to be called
+  // when a thread is about to terminate, e.g. from TSQLRest.EndCurrentThread
   // - by default, ptMergedInOneFile will indicate that all threads are logged
   // in the same file, in occurence order
   // - if set to ptOneFilePerThread, it will create one .log file per thread
@@ -393,8 +395,12 @@ type
   // display per-thread logging, if needed - note that your application shall
   // use a thread pool (just like all mORMot servers classes do), otherwise
   // some random hash collision may occur if Thread IDs are not recycled enough
+  // - if set to ptNoThreadProcess, no thread information is gathered, and all
+  // Enter/Leave would be merged into a single call - but it may be mandatory
+  // to use this option if TSynLog.NotifyThreadEnded is not called (e.g. from
+  // legacy code), and that your process experiment instability issues
   TSynLogPerThreadMode = (
-    ptMergedInOneFile, ptOneFilePerThread, ptIdentifiedInOnFile);
+    ptMergedInOneFile, ptOneFilePerThread, ptIdentifiedInOnFile, ptNoThreadProcess);
 
   /// how stack trace shall be computed during logging
   TSynLogStackTraceUse = (stManualAndAPI,stOnlyAPI,stOnlyManual);
@@ -527,11 +533,11 @@ type
     // - this property shall be set before any actual logging, otherwise it
     // will have no effect
     // - can be set e.g. to LOG_VERBOSE in order to echo every kind of events
-    // - EchoCustom or EchoService can be activated separately
+    // - EchoCustom or EchoToConsole can be activated separately
     property EchoToConsole: TSynLogInfos read fEchoToConsole write SetEchoToConsole;
     /// can be set to a callback which will be called for each log line
     // - could be used with a third-party logging system
-    // - EchoToConsole or EchoService can be activated separately
+    // - EchoToConsole or EchoCustom can be activated separately
     // - you may even disable the integrated file output, via NoFile := true
     property EchoCustom: TOnTextWriterEcho read fEchoCustom write fEchoCustom;
   published
@@ -863,7 +869,7 @@ type
     // enter (+) and leave (-) events:
     //  $ 20110325 19325801  +    MyDBUnit.TMyDB(004E11F4).SQLExecute
     //  $ 20110325 19325801 info   SQL=SELECT * FROM Table;
-    //  $ 20110325 19325801  -    MyDBUnit.TMyDB(004E11F4).SQLExecute
+    //  $ 20110325 19325801  -    01.512.320
     // - note that due to a limitation (feature?) of the FPC compiler, you need
     // to hold the returned value into a local ISynLog variable, as such:
     // ! procedure TMyDB.SQLFlush;
@@ -1079,7 +1085,8 @@ type
     fLineTextOffset: cardinal;
     fLineHeaderCountToIgnore: integer;
     /// as extracted from the .log header
-    fExeName, fExeVersion, fHost, fUser, fCPU, fOSDetailed, fInstanceName: RawUTF8;
+    fExeName, fExeVersion, fInstanceName: RawUTF8;
+    fHost, fUser, fCPU, fOSDetailed, fFramework: RawUTF8;
     fExeDate: TDateTime;
     fIntelCPU: TIntelCpuFeatures;
     {$ifdef MSWINDOWS}
@@ -1234,6 +1241,9 @@ type
     // - under Linux, it will return the full system version, e.g.
     // 'Linux-3.13.0-43-generic#72-Ubuntu-SMP-Mon-Dec-8-19:35:44-UTC-2014'
     property DetailedOS: RawUTF8 read fOSDetailed;
+    /// the associated framework information
+    // - returns e.g. 'TSQLLog 1.18.2765 ERTL FTS3'
+    property Framework: RawUTF8 read fFramework;
     /// the date and time at which the log file was started
     property StartDateTime: TDateTime read fStartDateTime;
     /// number of profiled methods in this .log file
@@ -2934,39 +2944,51 @@ const
   MAXLOGTHREAD = 1 shl MAXLOGTHREADBITS;
 
 procedure TSynLog.GetThreadContextInternal;
+var secondpass: boolean;
 begin // should match TSynLog.ThreadContextRehash
-  fThreadLastHash := PtrUInt(fThreadID xor (fThreadID shr MAXLOGTHREADBITS)
-    xor (fThreadID shr (MAXLOGTHREADBITS*2))) and (MAXLOGTHREAD-1);
-  fThreadIndex := fThreadHash[fThreadLastHash];
-  if fThreadIndex<>0 then
-    repeat
-      fThreadContext := @fThreadContexts[fThreadIndex-1];
-      if fThreadContext^.ID=fThreadID then // match found
-        exit;
-      // hash collision -> try next item in fThreadHash[] if possible
-      if fThreadLastHash=MAXLOGTHREAD-1 then
-        fThreadLastHash := 0 else
-        inc(fThreadLastHash);
-      fThreadIndex := fThreadHash[fThreadLastHash];
-    until fThreadIndex=0;
-  // here we know that fThreadIndex=fThreadHash[hash]=0 -> register the thread
-  if fThreadIndexReleasedCount>0 then begin // reuse NotifyThreadEnded() index
-    dec(fThreadIndexReleasedCount);
-    fThreadIndex := fThreadIndexReleased[fThreadIndexReleasedCount];
-  end else begin // store a new entry
-    if fThreadContextCount>=length(fThreadContexts) then
-      SetLength(fThreadContexts,fThreadContextCount+128);
-    inc(fThreadContextCount);
-    fThreadIndex := fThreadContextCount;
-  end;
-  fThreadHash[fThreadLastHash] := fThreadIndex;
+  if fFamily.fPerThreadLog<>ptNoThreadProcess then begin
+    secondpass := false;
+    fThreadLastHash := PtrUInt(fThreadID xor (fThreadID shr MAXLOGTHREADBITS)
+      xor (fThreadID shr (MAXLOGTHREADBITS*2))) and (MAXLOGTHREAD-1);
+    fThreadIndex := fThreadHash[fThreadLastHash];
+    if fThreadIndex<>0 then
+      repeat
+        fThreadContext := @fThreadContexts[fThreadIndex-1];
+        if fThreadContext^.ID=fThreadID then // match found
+          exit;
+        // hash collision -> try next item in fThreadHash[] if possible
+        if fThreadLastHash=MAXLOGTHREAD-1 then
+          if secondpass then // avoid endless loop -> reuse last fThreadHash[]
+            exit else begin
+            fThreadLastHash := 0;
+            secondpass := true;
+          end else
+          inc(fThreadLastHash);
+        fThreadIndex := fThreadHash[fThreadLastHash];
+      until fThreadIndex=0;
+    // here we know that fThreadIndex=fThreadHash[hash]=0 -> register the thread
+    if fThreadIndexReleasedCount>0 then begin // reuse NotifyThreadEnded() index
+      dec(fThreadIndexReleasedCount);
+      fThreadIndex := fThreadIndexReleased[fThreadIndexReleasedCount];
+    end else begin // store a new entry
+      if fThreadContextCount>=length(fThreadContexts) then
+        SetLength(fThreadContexts,fThreadContextCount+128);
+      inc(fThreadContextCount);
+      fThreadIndex := fThreadContextCount;
+    end;
+    fThreadHash[fThreadLastHash] := fThreadIndex;
+  end else
+    fThreadIndex := 1;
   fThreadContext := @fThreadContexts[fThreadIndex-1];
   fThreadContext^.ID := fThreadID;
 end;
 
 procedure TSynLog.ThreadContextRehash;
 var i, id, hash: integer;
+    secondpass: boolean;
 begin // should match TSynLog.GetThreadContextInternal
+  if fFamily.fPerThreadLog=ptNoThreadProcess then
+    exit;
   FillcharFast(fThreadHash[0],MAXLOGTHREAD*sizeof(fThreadHash[0]),0);
   for i := 0 to fThreadContextCount-1 do begin
     id := fThreadContexts[i].ID;
@@ -2974,12 +2996,17 @@ begin // should match TSynLog.GetThreadContextInternal
       continue; // empty slot
     hash := PtrUInt(id xor (id shr MAXLOGTHREADBITS)
       xor (id shr (MAXLOGTHREADBITS*2))) and (MAXLOGTHREAD-1);
+    secondpass := false;
     repeat
       if fThreadHash[hash]=0 then
         break;
       // hash collision (no need to check the ID here)
       if hash=MAXLOGTHREAD-1 then
-        hash := 0 else
+        if secondpass then // avoid endless loop
+          break else begin
+          hash := 0;
+          secondpass := true;
+        end else
         inc(hash);
     until false;
     fThreadHash[hash] := i+1;
@@ -3401,7 +3428,9 @@ begin
   TextColor(LOGCOLORS[Level]);
   {$ifdef MSWINDOWS}
   tmp := CurrentAnsiConvert.UTF8ToAnsi(Text);
+  {$ifndef HASCODEPAGE}
   AnsiToOem(pointer(tmp),pointer(tmp));
+  {$endif}
   writeln(tmp);
   {$else}
   write(Text,#13#10);
@@ -3469,7 +3498,7 @@ begin
   if (self<>nil) and (sllInfo in fFamily.fLevel) then
     if LogHeaderLock(sllInfo,false) then // inlined LogInternal
     try
-      fWriter.Add('SetThreadName %=%',[fThreadID,Name],twOnSameLine);
+      fWriter.Add('SetThreadName %=%',[pointer(fThreadID),Name],twOnSameLine);
       fThreadContext^.ThreadName := Name;
     finally
       LogTrailerUnLock(sllInfo);
@@ -4403,15 +4432,19 @@ begin
     if PWord(fLines[fHeaderLinesCount])^<>ord('0')+ord('0')shl 8 then // YYYYMMDD -> 20101225 e.g.
       fFreq := 0 else // =0 if date time, >0 if high-resolution time stamp
       fFreqPerDay := fFreq*SecsPerDay;
-    Iso8601ToDateTimePUTF8CharVar(PUTF8Char(
-      fLines[fHeaderLinesCount-2])+LineSize(fHeaderLinesCount-2)-19,19,fStartDateTime);
-    if fStartDateTime=0 then
-      exit;
+    {$ifdef MSWINDOWS} // use only fOSDetailed under Linux
     P := pointer(fOSDetailed);
-    {$ifdef MSWINDOWS} // use fOSDetailed under Linux
     fOS := TWindowsVersion(GetNextItemCardinal(P,'.'));
     fOSServicePack := GetNextItemCardinal(P);
     {$endif}
+    P := fLines[fHeaderLinesCount-2]; // TSQLLog 1.18.2765 ERTL FTS3 2016-07-17T22:38:03
+    i := LineSize(fHeaderLinesCount-2)-19; // length('2016-07-17T22:38:03')=19
+    if i>0 then begin
+      SetString(fFramework,PAnsiChar(P),i-1);
+      Iso8601ToDateTimePUTF8CharVar(P+i,19,fStartDateTime);
+    end;
+    if fStartDateTime=0 then
+      exit;
     // 3. compute fCount and fLines[] so that all fLevels[]<>sllNone
     CleanLevels(self);
     if Length(fLevels)-fCount>16384 then begin // size down only if worth it

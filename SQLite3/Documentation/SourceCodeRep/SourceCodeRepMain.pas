@@ -39,6 +39,8 @@ type
     btnDMustache: TButton;
     btnLVCL: TButton;
     chkCopyLink: TCheckBox;
+    chkFossilPush: TCheckBox;
+    chkFossilPull: TCheckBox;
     procedure FormCreate(Sender: TObject);
     procedure btnFullSynchClick(Sender: TObject);
     procedure btnFossilSynchClick(Sender: TObject);
@@ -117,15 +119,30 @@ begin
     fBatPath := ExtractFilePath(ExcludeTrailingPathDelimiter(fBatPath));
   if not FileExists(fBatPath + 'FossilStatus.bat') then
     ShowMessage('Missing .bat files');
-  fDevPath := 'd:\dev\lib';
-  fFossilRepository := 'c:\progs\fossil\lib';
-  fGitExe := 'c:\Program Files (x86)\Git\bin\git.exe';
-  fGitRepository := 'd:\dev\github\mORMot';
+  fFossilRepository := GetEnvironmentVariable('SYN_FOSSILREPO_PATH');
+  if fFossilRepository = '' then
+    fFossilRepository := 'c:\progs\fossil\lib';
+  fDevPath := GetEnvironmentVariable('SYN_DEVPATH');
+  if fDevPath = '' then
+    if DirectoryExists('d:\dev\lib') then
+      fDevPath := 'd:\dev\lib' else
+      fDevPath := fFossilRepository;
+  fGitExe := GetEnvironmentVariable('GIT_PATH');
+  if fGitExe = '' then
+    fGitExe := 'c:\Program Files (x86)\Git\bin\git.exe';
+  fGitRepository := GetEnvironmentVariable('SYN_GITREPO_PATH');
+  if fGitRepository = '' then
+    fGitRepository := 'd:\dev\github\mORMot';
   if not DirectoryExists(fFossilRepository) then begin
-    ShowMessage('Please set Fossil Repository Name');
+    ShowMessage('Please set Fossil Repository Name or environment variable SYN_FOSSILREPO_PATH');
     Close;
-  end
-  else
+  end else if not DirectoryExists(fGitRepository) then begin
+    ShowMessage('Please set Git Repository Path or environment variable SYN_GITREPO_PATH');
+    Close;
+  end else if not FileExists(fGitExe) then begin
+    ShowMessage('Please install git to ' + fGitExe + ' or set environment variable GIT_PATH');
+    Close;
+  end else
     ReadStatus;
 end;
 
@@ -150,6 +167,10 @@ begin
     mmoDescription.SetFocus;
     exit;
   end;
+  if chkFossilPull.Checked then
+    ExecAndWait(format('%sFossilUpdate.bat "%s" %d', [fBatPath, DescFile,
+      Integer(chkFossilPush.Checked)]),
+      fFossilRepository, SW_SHOWNORMAL, INFINITE);
   VersionText := UnQuoteSQLString(StringFromFile(fDevPath + '\SynopseCommit.inc'));
   VersionText := GetCSVItem(pointer(VersionText), 2, '.');
   VersionNumber := GetCardinalDef(pointer(VersionText), 255);
@@ -159,7 +180,8 @@ begin
   FileFromString(VersionText, fFossilRepository + '\SynopseCommit.inc');
   DescFile := fBatPath + 'desc.txt';
   FileFromString('{' + IntToStr(VersionNumber) + '} ' + Desc, DescFile);
-  ExecAndWait(fBatPath + 'FossilCommit.bat "' + DescFile + '"',
+  ExecAndWait(format('%sFossilCommit.bat "%s" %d', [fBatPath, DescFile,
+    Integer(chkFossilPush.Checked)]),
     fFossilRepository, SW_SHOWNORMAL, INFINITE);
   btnRefreshStatus.Click;
 end;

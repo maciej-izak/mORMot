@@ -63,6 +63,7 @@ uses
   Contnrs,
   Variants,
   SyncObjs,
+  SynCrtSock,
   SynCommons,
   SynLog,
   SynCrypto,
@@ -2004,7 +2005,7 @@ procedure TDDDRepositoryRestCommand.InternalCommit;
 begin
   if fBatch.Count=0 then
     CqrsSetResult(cqrsBadRequest) else begin
-    CqrsSetResultSuccessIf(Factory.Rest.BatchSend(fBatch,fBatchResults)=HTML_SUCCESS);
+    CqrsSetResultSuccessIf(Factory.Rest.BatchSend(fBatch,fBatchResults)=HTTP_SUCCESS);
     FreeAndNil(fBatch);
   end;
 end;
@@ -2543,7 +2544,7 @@ var rest: TSQLRest;
     cmd: integer;
 begin
   result.Header := JSON_CONTENT_TYPE_HEADER_VAR;
-  result.Status := HTML_SUCCESS;
+  result.Status := HTTP_SUCCESS;
   if SQL='' then
     exit;
   if SQL[1]='#' then begin
@@ -2597,6 +2598,10 @@ begin
       end;
       {$endif}
       result.Content := SystemInfoJson;
+      {$ifdef MSWINDOWS}
+      result.Content[length(result.Content)] := ',';
+      result.Content := result.Content+'"ip":"'+GetIPAddressesText+'"}';
+      {$endif}
       exit;
     end;
     {$ifdef WITHLOG}

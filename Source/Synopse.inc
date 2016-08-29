@@ -185,9 +185,11 @@
 }
 
 {$ifdef FPC}
+
   {$ifndef FPC_DELPHI}
     {$MODE DELPHI} // e.g. for asm syntax - disabled for FPC 2.6 compatibility
   {$endif}
+
   {$INLINE ON}
   {$MINENUMSIZE 1}
   {$PACKSET 1}

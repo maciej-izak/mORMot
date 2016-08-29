@@ -206,11 +206,12 @@ type
   public
     /// connect to TSQLHttpServer on aServer:aPort
     // - you can customize the default client timeouts by setting appropriate
-    // ConnectTimeout, SendTimeout and ReceiveTimeout parameters (in ms)
+    // ConnectTimeout, SendTimeout and ReceiveTimeout parameters (in ms) - if
+    // you left the 0 default parameters, it would use global
+    // HTTP_DEFAULT_CONNECTTIMEOUT, HTTP_DEFAULT_SENDTIMEOUT and
+    // HTTP_DEFAULT_RECEIVETIMEOUT variable values
     constructor Create(const aServer, aPort: AnsiString; aModel: TSQLModel;
-      SendTimeout: DWORD=HTTP_DEFAULT_SENDTIMEOUT;
-      ReceiveTimeout: DWORD=HTTP_DEFAULT_RECEIVETIMEOUT;
-      ConnectTimeout: DWORD=HTTP_DEFAULT_CONNECTTIMEOUT); reintroduce; overload; virtual;
+      SendTimeout: DWORD=0; ReceiveTimeout: DWORD=0; ConnectTimeout: DWORD=0); reintroduce; overload; virtual;
     /// connect to TSQLHttpServer via 'address:port/root' URI format
     // - if port is not specified, aDefaultPort is used
     // - if root is not specified, aModel.Root is used
@@ -293,6 +294,7 @@ type
       Compression: boolean;
       Ajax: boolean;
     end;
+    fOnWebSocketsUpgraded: TOnRestClientNotify;
     function InternalCheckOpen: boolean; override;
     function FakeCallbackRegister(Sender: TServiceFactoryClient;
       const Method: TServiceMethod; const ParamInfo: TServiceMethodArgument;
@@ -310,17 +312,31 @@ type
     // 'synopsejson' mode, i.e. TWebSocketProtocolJSON (to be used for AJAX
     // debugging/test purposes only)
     // and aWebSocketsEncryptionKey/aWebSocketsCompression parameters won't be used
+    // - once upgraded, the client would automatically re-upgrade any new
+    // HTTP client link on automatic reconnection, so that use of this class
+    // should be not tied to a particular TCP/IP socket - use OnWebsocketsUpgraded
+    // event to perform any needed initialization set, e.g. SOA real-time
+    // callbacks registration
     // - will return '' on success, or an error message on failure
     function WebSocketsUpgrade(const aWebSocketsEncryptionKey: RawUTF8;
       aWebSocketsAJAX: boolean=false; aWebSocketsCompression: boolean=true): RawUTF8;
     /// connect using a specified WebSockets protocol
     // - this method would call WebSocketsUpgrade, then ServerTimeStampSynchronize
-    // - it therefore expects SetUser() to have been previously called 
+    // - it therefore expects SetUser() to have been previously called
     function WebSocketsConnect(const aWebSocketsEncryptionKey: RawUTF8;
       aWebSocketsAJAX: boolean=false; aWebSocketsCompression: boolean=true): RawUTF8;
     /// internal HTTP/1.1 and WebSockets compatible client
     // - you could use its properties after upgrading the connection to WebSockets
     function WebSockets: THttpClientWebSockets;
+    /// this event would be executed just after the HTTP client has been
+    // upgraded to the expected WebSockets protocol
+    // - supplied Sender parameter will be this TSQLHttpClientWebsockets instance
+    // - it will be executed the first time, and also on each reconnection
+    // occuring when the HTTP-TCP/IP link is re-created, and user re-authenticated
+    // - this event handler is the right place to setup link-driven connection,
+    // e.g. SOA real-time callbacks registration (using Sender.Services)
+    property OnWebSocketsUpgraded: TOnRestClientNotify
+      read fOnWebSocketsUpgraded write fOnWebSocketsUpgraded;
   end;
 
   /// HTTP/1.1 RESTful JSON mORMot Client abstract class using either WinINet,
@@ -344,29 +360,25 @@ type
   public
     /// connect to TSQLHttpServer on aServer:aPort with the default settings
     // - you can customize the default client timeouts by setting appropriate
-    // ConnectTimeout, SendTimeout and ReceiveTimeout parameters (in ms) - note
-    // that after creation of this instance, the connection is tied to those
-    // initial parameters, so we won't publish any properties to change those
-    // initial values once created
+    // ConnectTimeout, SendTimeout and ReceiveTimeout parameters (in ms) - if
+    // you left the 0 default parameters, it would use global
+    // HTTP_DEFAULT_CONNECTTIMEOUT, HTTP_DEFAULT_SENDTIMEOUT and
+    // HTTP_DEFAULT_RECEIVETIMEOUT variable values
     constructor Create(const aServer, aPort: AnsiString; aModel: TSQLModel;
-      SendTimeout: DWORD=HTTP_DEFAULT_SENDTIMEOUT;
-      ReceiveTimeout: DWORD=HTTP_DEFAULT_RECEIVETIMEOUT;
-      ConnectTimeout: DWORD=HTTP_DEFAULT_CONNECTTIMEOUT); overload; override;
+      SendTimeout: DWORD=0; ReceiveTimeout: DWORD=0; ConnectTimeout: DWORD=0); overload; override;
     /// connect to TSQLHttpServer on aServer:aPort
     // - optional aProxyName may contain the name of the proxy server to use,
     // and aProxyByPass an optional semicolon delimited list of host names or
     // IP addresses, or both, that should not be routed through the proxy
     // - you can customize the default client timeouts by setting appropriate
-    // ConnectTimeout, SendTimeout and ReceiveTimeout parameters (in ms) - note
-    // that after creation of this instance, the connection is tied to those
-    // initial parameters, so we won't publish any properties to change those
-    // initial values once created
+    // ConnectTimeout, SendTimeout and ReceiveTimeout parameters (in ms) - if
+    // you left the 0 default parameters, it would use global
+    // HTTP_DEFAULT_CONNECTTIMEOUT, HTTP_DEFAULT_SENDTIMEOUT and
+    // HTTP_DEFAULT_RECEIVETIMEOUT variable values
     constructor Create(const aServer, aPort: AnsiString; aModel: TSQLModel;
       aHttps: boolean; const aProxyName: AnsiString='';
-      const aProxyByPass: AnsiString='';
-      SendTimeout: DWORD=HTTP_DEFAULT_SENDTIMEOUT;
-      ReceiveTimeout: DWORD=HTTP_DEFAULT_RECEIVETIMEOUT;
-      ConnectTimeout: DWORD=HTTP_DEFAULT_CONNECTTIMEOUT); reintroduce; overload;
+      const aProxyByPass: AnsiString=''; SendTimeout: DWORD=0;
+      ReceiveTimeout: DWORD=0; ConnectTimeout: DWORD=0); reintroduce; overload;
     /// internal class instance used for the connection
     // - will return either a TWinINet, a TWinHTTP or a TCurlHTTP class instance
     property Request: THttpRequest read fRequest;
@@ -492,7 +504,7 @@ begin
     Call.OutHead := Head;
     Call.OutBody := Content;
   end else
-    Call.OutStatus := HTML_NOTIMPLEMENTED; // 501
+    Call.OutStatus := HTTP_NOTIMPLEMENTED; // 501
 {$ifdef WITHLOG}
   with Call do
     fLogFamily.SynLog.Log(sllClient,'% % status=% state=%',
@@ -520,9 +532,15 @@ begin
   fPort := aPort;
   fKeepAliveMS := 20000; // 20 seconds connection keep alive by default
   fCompression := [hcSynLZ]; // may add hcDeflate for AJAX clients
-  fConnectTimeout := ConnectTimeout;
-  fSendTimeout := SendTimeout;
-  fReceiveTimeout := ReceiveTimeout;
+  if ConnectTimeout=0 then
+    fConnectTimeout := HTTP_DEFAULT_CONNECTTIMEOUT else
+    fConnectTimeout := ConnectTimeout;
+  if SendTimeout=0 then
+    fSendTimeout := HTTP_DEFAULT_SENDTIMEOUT else
+    fSendTimeout := SendTimeout;
+  if ReceiveTimeout=0 then
+    fReceiveTimeout := HTTP_DEFAULT_RECEIVETIMEOUT else
+    fReceiveTimeout := ReceiveTimeout;
 end;
 
 constructor TSQLHttpClientGeneric.CreateForRemoteLogging(const aServer: AnsiString;
@@ -716,7 +734,7 @@ begin
   end;
   body := FormatUTF8('{"%":%}',[Factory.InterfaceTypeInfo^.Name,FakeCallbackID]);
   head := 'Sec-WebSockets-REST: NonBlocking';
-  result := CallBack(mPOST,'CacheFlush/_callback_',body,resp,nil,0,@head)=HTML_SUCCESS;
+  result := CallBack(mPOST,'CacheFlush/_callback_',body,resp,nil,0,@head)=HTTP_SUCCESS;
 end;
 
 function TSQLHttpClientWebsockets.CallbackRequest(Ctxt: THttpServerRequest): cardinal;
@@ -725,7 +743,7 @@ begin
   if (Ctxt=nil) or
      ((Ctxt.InContentType<>'') and
       not IdemPropNameU(Ctxt.InContentType,JSON_CONTENT_TYPE)) then begin
-    result := HTML_BADREQUEST;
+    result := HTTP_BADREQUEST;
     exit;
   end;
   params.Init(Ctxt.URL,Ctxt.Method,Ctxt.InHeaders,Ctxt.InContent);
@@ -761,12 +779,14 @@ begin
     result := 'Impossible to connect to the Server' else begin
     result := sockets.WebSocketsUpgrade(Model.Root,
       aWebSocketsEncryptionKey,aWebSocketsAJAX,aWebSocketsCompression);
-    if result='' then
+    if result='' then // no error message = success
       with fWebSocketParams do begin // store parameters for auto-reconnection
         AutoUpgrade := true;
         Key := aWebSocketsEncryptionKey;
         Compression := aWebSocketsCompression;
         Ajax := aWebSocketsAJAX;
+        if Assigned(fOnWebSocketsUpgraded) then
+          fOnWebSocketsUpgraded(self);
       end;
   end;
 {$ifdef WITHLOG}
@@ -807,9 +827,15 @@ begin
   fHttps := aHttps;
   fProxyName := aProxyName;
   fProxyByPass := aProxyByPass;
-  fSendTimeout := SendTimeout;
-  fReceiveTimeout := ReceiveTimeout;
-  fConnectTimeout := ConnectTimeout;
+  if ConnectTimeout=0 then
+    fConnectTimeout := HTTP_DEFAULT_CONNECTTIMEOUT else
+    fConnectTimeout := ConnectTimeout;
+  if SendTimeout=0 then
+    fSendTimeout := HTTP_DEFAULT_SENDTIMEOUT else
+    fSendTimeout := SendTimeout;
+  if ReceiveTimeout=0 then
+    fReceiveTimeout := HTTP_DEFAULT_RECEIVETIMEOUT else
+    fReceiveTimeout := ReceiveTimeout;
 end;
 
 constructor TSQLHttpClientRequest.Create(const aServer,
@@ -862,7 +888,7 @@ function TSQLHttpClientRequest.InternalRequest(const url, method: RawUTF8;
 var OutHeader, OutData: RawByteString;
 begin
   if fRequest=nil then
-    result.Lo := HTML_NOTIMPLEMENTED else begin
+    result.Lo := HTTP_NOTIMPLEMENTED else begin
     result.Lo := fRequest.Request(url,method,KeepAliveMS,Header,Data,DataType,
       SockString(OutHeader),SockString(OutData));
     result.Hi := GetCardinal(pointer(
