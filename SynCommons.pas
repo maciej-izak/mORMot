@@ -21590,6 +21590,8 @@ type
     Size: Integer;
     {$ifdef FPC_HAS_MANAGEMENT_OPERATORS}
     ManagementOp: Pointer;
+    _1: Pointer;
+    _2: Pointer;
     {$endif}
     ManagedFieldCount: Integer;
     ManagedFields: array[0..0] of TInitManagedField;
@@ -21635,6 +21637,8 @@ type
       recSize: longint;
       Terminator: Pointer;
       recManagementOperators: Pointer;
+      _1: Pointer;
+      _2: Pointer;
       ManagedCount: longint;
     end;
   {$endif FPC_HAS_MANAGEMENT_OPERATORS}
