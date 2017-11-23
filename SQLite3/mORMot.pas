@@ -48550,6 +48550,9 @@ begin
     {$ifdef NOVARIANTS}false{$else}Kind=tkVariant{$endif},true,@PropValueLen);
   if (PropValue=nil) or not (EndOfObject in ['}',',']) then
     exit; // invalid JSON content (null has been handled above)
+  {$ifdef FPC_NEWRTTI}
+  if IsWriteableProp(TypInfo.PPropInfo(P)) then
+  {$endif}
   case Kind of
   tkInt64{$ifdef FPC}, tkQWord{$endif}:
     if wasString then begin
