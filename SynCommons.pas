@@ -6960,6 +6960,9 @@ function TypeInfoToHash(aTypeInfo: pointer): cardinal;
 /// retrieve the record size from its low-level RTTI
 function RecordTypeInfoSize(aRecordTypeInfo: pointer): integer;
 
+/// retrieve the class VMT size from low-level RTTI
+function VMTSize(aClass: TClass): integer;
+
 /// retrieve the item type information of a dynamic array low-level RTTI
 function DynArrayTypeInfoToRecordInfo(aDynArrayTypeInfo: pointer;
   aDataSize: PInteger=nil): pointer;
@@ -22606,6 +22609,16 @@ begin
   if info=nil then
     result := 0 else
     result := info^.recSize;
+end;
+
+function VMTSize(aClass: TClass): integer;
+var
+  classptr: PtrInt absolute AClass;
+begin
+{$IFNDEF FPC}
+  result := (PtrInt(Pointer(classptr + {$IFDEF UNICODE}vmtMethodTable{$ELSE}vmtClassName{$ENDIF})^) - (classptr + vmtSelfPtr));
+{$ELSE}
+{$ENDIF}
 end;
 
 function GetEnumInfo(aTypeInfo: pointer; out MaxValue: Integer): PShortString;
