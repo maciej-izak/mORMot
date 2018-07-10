@@ -6963,6 +6963,9 @@ function RecordTypeInfoSize(aRecordTypeInfo: pointer): integer;
 /// retrieve the class VMT size from low-level RTTI
 function VMTSize(aClass: TClass): integer;
 
+function CreateClassClone(aClass: TClass): TClass;
+procedure FreeClassClone(aClass: TClass);
+
 /// retrieve the item type information of a dynamic array low-level RTTI
 function DynArrayTypeInfoToRecordInfo(aDynArrayTypeInfo: pointer;
   aDataSize: PInteger=nil): pointer;
@@ -22613,7 +22616,7 @@ end;
 
 function VMTSize(aClass: TClass): integer;
 var
-  {$ifndef fpc}
+  {$ifndef FPC}
   classptr: PtrUInt absolute aClass;
   {$else}
   ptr: ^CodePointer;
@@ -22629,6 +22632,30 @@ begin
   Inc(ptr);
   result := PtrUInt(ptr)-PtrUInt(aClass);
 {$endif}
+end;
+
+function CreateClassClone(aClass: TClass): TClass;
+var
+  size: integer;
+  ptr: pointer absolute result;
+begin
+  size := VMTSize(aClass);
+  GetMem(ptr, size);
+  {$ifdef FPC}
+  MoveFast(Pointer(aClass)^, ptr^, size);
+  {$else}
+  MoveFast(Pointer(PtrUInt(aClass) + vmtSelfPtr)^, ptr^, size);
+  Inc(PByte(ptr), -vmtSelfPtr);
+  {$endif}
+end;
+
+procedure FreeClassClone(aClass: TClass);
+begin
+  {$ifdef FPC}
+  FreeMem(Pointer(aClass));
+  {$else}
+  FreeMem(Pointer(PtrUInt(aClass) + vmtSelfPtr));
+  {$endif}
 end;
 
 function GetEnumInfo(aTypeInfo: pointer; out MaxValue: Integer): PShortString;
