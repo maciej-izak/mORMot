@@ -22620,7 +22620,7 @@ var
   {$endif}
 begin
 {$ifndef FPC}
-  result := (PtrUInt(Pointer(classptr + {$IFDEF UNICODE}vmtMethodTable{$ELSE}vmtClassName{$ENDIF})^) - (classptr + vmtSelfPtr));
+  result := (PtrUInt(Pointer(classptr + {$ifdef UNICODE}vmtMethodTable{$else}vmtClassName{$endif})^) - (classptr + vmtSelfPtr));
 {$else}
   ptr := Pointer(aClass);
   Inc(PVmt(ptr));
