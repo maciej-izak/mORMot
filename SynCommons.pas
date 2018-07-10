@@ -22613,12 +22613,22 @@ end;
 
 function VMTSize(aClass: TClass): integer;
 var
-  classptr: PtrInt absolute AClass;
+  {$ifndef fpc}
+  classptr: PtrUInt absolute aClass;
+  {$else}
+  ptr: ^CodePointer;
+  {$endif}
 begin
-{$IFNDEF FPC}
-  result := (PtrInt(Pointer(classptr + {$IFDEF UNICODE}vmtMethodTable{$ELSE}vmtClassName{$ENDIF})^) - (classptr + vmtSelfPtr));
-{$ELSE}
-{$ENDIF}
+{$ifndef FPC}
+  result := (PtrUInt(Pointer(classptr + {$IFDEF UNICODE}vmtMethodTable{$ELSE}vmtClassName{$ENDIF})^) - (classptr + vmtSelfPtr));
+{$else}
+  ptr := Pointer(aClass);
+  Inc(PVmt(ptr));
+  while ptr^ <> nil do Inc(ptr);
+  // add nil terminator to the size
+  Inc(ptr);
+  result := PtrUInt(ptr)-PtrUInt(aClass);
+{$endif}
 end;
 
 function GetEnumInfo(aTypeInfo: pointer; out MaxValue: Integer): PShortString;
