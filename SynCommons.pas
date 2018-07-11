@@ -6963,7 +6963,9 @@ function RecordTypeInfoSize(aRecordTypeInfo: pointer): integer;
 /// retrieve the class VMT size from low-level RTTI
 function VMTSize(aClass: TClass): integer;
 
-function CreateClassClone(aClass: TClass): TClass;
+function ClassIsClone(aClass: TClass): boolean;
+function CreateClassClone(aClass: TClass; aDataSize: Integer = 0; aData: PPointer = nil): TClass;
+function ClassCloneData(aClass: TClass): Pointer;
 procedure FreeClassClone(aClass: TClass);
 
 /// retrieve the item type information of a dynamic array low-level RTTI
@@ -22614,33 +22616,53 @@ begin
     result := info^.recSize;
 end;
 
+const
+  VMT_CONTROL_PREFIX: LongWord = $21544D56; // array[0..3] of AnsiChar = 'VMT!';
+
 function VMTSize(aClass: TClass): integer;
 var
-  {$ifndef FPC}
-  classptr: PtrUInt absolute aClass;
-  {$else}
+{$ifdef FPC}
   ptr: ^CodePointer;
-  {$endif}
-begin
-{$ifndef FPC}
-  result := (PtrUInt(Pointer(classptr + {$ifdef UNICODE}vmtMethodTable{$else}vmtClassName{$endif})^) - (classptr + vmtSelfPtr));
 {$else}
+  classptr: PtrUInt absolute aClass;
+{$endif}
+begin
+{$ifdef FPC}
   ptr := Pointer(aClass);
   Inc(PVmt(ptr));
   while ptr^ <> nil do Inc(ptr);
   // add nil terminator to the size
   Inc(ptr);
   result := PtrUInt(ptr)-PtrUInt(aClass);
+{$else}
+  // get VMT size of cloned class in special way
+  if (PPointer(classptr + vmtSelfPtr)^ <> aClass) and ClassIsClone(TClass) then
+    classptr := PPointer(classptr + vmtSelfPtr)^;
+  result := (PtrUInt(Pointer(classptr + {$ifdef UNICODE}vmtMethodTable{$else}vmtClassName{$endif})^) - (classptr + vmtSelfPtr));
 {$endif}
 end;
 
-function CreateClassClone(aClass: TClass): TClass;
+function ClassIsClone(aClass: TClass): boolean;
+var
+  ptr: PByte absolute aClass;
+begin
+  Inc(ptr, {$ifndef FPC}vmtSelfPtr{$endif} - SizeOf(VMT_CONTROL_PREFIX));
+  result := PLongWord(ptr)^ = VMT_CONTROL_PREFIX;
+end;
+
+function CreateClassClone(aClass: TClass; aDataSize: Integer; aData: PPointer): TClass;
 var
   size: integer;
   ptr: pointer absolute result;
 begin
   size := VMTSize(aClass);
-  GetMem(ptr, size);
+  GetMem(ptr, size + aDataSize + SizeOf(VMT_CONTROL_PREFIX));
+  PLongWord(ptr)^ := VMT_CONTROL_PREFIX;
+  Inc(PLongWord(ptr));
+  if aData <> nil then begin
+    aData^ := ptr;
+    Inc(PByte(aData^), size);
+  end;
   {$ifdef FPC}
   MoveFast(Pointer(aClass)^, ptr^, size);
   {$else}
@@ -22649,12 +22671,29 @@ begin
   {$endif}
 end;
 
-procedure FreeClassClone(aClass: TClass);
+function ClassCloneData(aClass: TClass): Pointer;
+var
+  ptr: PByte absolute aClass;
 begin
+  result := nil;
+  if not ClassIsClone(aClass) then
+    exit;
+  Inc(ptr, {$ifndef FPC}vmtSelfPtr{$endif} + VMTSize(aClass));
+  result := ptr;
+end;
+
+procedure FreeClassClone(aClass: TClass);
+var
+  ptr: PByte absolute aClass;
+begin
+  if not ClassIsClone(aClass) then
+    raise ESynException.CreateUTF8('FreeClassClone: class "%" is not a clone of class', [aClass.ClassName]);
+  Dec(ptr, SizeOf(VMT_CONTROL_PREFIX));
   {$ifdef FPC}
-  FreeMem(Pointer(aClass));
+  FreeMem(ptr);
   {$else}
-  FreeMem(Pointer(PtrUInt(aClass) + vmtSelfPtr));
+  Inc(ptr, vmtSelfPtr);
+  FreeMem(ptr);
   {$endif}
 end;
 
