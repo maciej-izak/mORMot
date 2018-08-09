@@ -14330,6 +14330,9 @@ var
 // !    GarbageCollectorFreeAndNil(SynAnsiConvertList,TObjectList.Create);
 procedure GarbageCollectorFreeAndNil(var InstanceVariable; Instance: TObject);
 
+/// remove variable from "Garbage collector" and FreeAndNil immediately
+procedure GarbageCollectorFreeAndNilRemove(var InstanceVariable);
+
 /// force the global "Garbage collector" list to be released immediately
 // - this function is called in the finalization section of this unit
 // - you should NEVER have to call this function, unless some specific cases
@@ -65982,6 +65985,13 @@ procedure GarbageCollectorFreeAndNil(var InstanceVariable; Instance: TObject);
 begin
   TObject(InstanceVariable) := Instance;
   GarbageCollectorFreeAndNilList.Add(@InstanceVariable);
+end;
+
+procedure GarbageCollectorFreeAndNilRemove(var InstanceVariable);
+begin
+  if (PObject(@InstanceVariable)^=nil) or (GarbageCollectorFreeAndNilList.Remove(@InstanceVariable)=-1) then
+    Exit;
+  FreeAndNil(PObject(@InstanceVariable)^);
 end;
 
 var
