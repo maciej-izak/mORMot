@@ -22636,8 +22636,8 @@ begin
   result := PtrUInt(ptr)-PtrUInt(aClass);
 {$else}
   // get VMT size of cloned class in special way
-  if (PPointer(classptr + vmtSelfPtr)^ <> aClass) and ClassIsClone(TClass) then
-    classptr := PPointer(classptr + vmtSelfPtr)^;
+  if (PPointer(classptr + vmtSelfPtr)^ <> aClass) and ClassIsClone(aClass) then
+    classptr := PPtrUInt(classptr + vmtSelfPtr)^;
   result := (PtrUInt(Pointer(classptr + {$ifdef UNICODE}vmtMethodTable{$else}vmtClassName{$endif})^) - (classptr + vmtSelfPtr));
 {$endif}
 end;
