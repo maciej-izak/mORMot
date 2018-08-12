@@ -6965,7 +6965,7 @@ function VMTSize(aClass: TClass): integer;
 
 function ClassIsClone(aClass: TClass): boolean;
 function CreateClassClone(aClass: TClass; aDataSize: Integer = 0; aData: PPointer = nil): TClass;
-function ClassCloneData(aClass: TClass): Pointer;
+function GetClassCloneData(aClass: TClass): Pointer;
 procedure FreeClassClone(aClass: TClass);
 
 /// retrieve the item type information of a dynamic array low-level RTTI
@@ -22674,7 +22674,7 @@ begin
   {$endif}
 end;
 
-function ClassCloneData(aClass: TClass): Pointer;
+function GetClassCloneData(aClass: TClass): Pointer;
 var
   ptr: PByte absolute aClass;
 begin

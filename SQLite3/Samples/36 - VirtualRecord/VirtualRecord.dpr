@@ -29,6 +29,15 @@ type
     property Question: RawUTF8 read fQuestion write fQuestion;
   end;
 
+  TSynClassInterceptor = object
+  private
+    fClass: TClass;
+    fClassName: ShortString;
+  public
+    procedure Init(aClass: TClass);
+    procedure Done;
+  end;
+
   PSQLVirtualRecordVMT = ^TSQLVirtualRecordVMT;
   TSQLVirtualRecordVMT = record
     Rows: ISQLDBRows;
@@ -47,10 +56,22 @@ type
   TSQLVirtualPropInfo = class(TSQLPropInfo)
   end;
 
+{ TSynClassInterceptor }
+
+procedure TSynClassInterceptor.Done;
+begin
+
+end;
+
+procedure TSynClassInterceptor.Init(aClass: TClass);
+begin
+
+end;
+
 class procedure TSQLVirtualRecord.ClassFree;
 begin
   GarbageCollectorFreeAndNilRemove(Pointer(PtrInt(self)+vmtAutoTable)^);
-  PSQLVirtualRecordVMT(ClassCloneData(self))^.Rows := nil;
+  PSQLVirtualRecordVMT(GetClassCloneData(self))^.Rows := nil;
   FreeClassClone(self);
 end;
 
@@ -65,7 +86,7 @@ var
   width: integer;
   colname: RawUTF8;
 begin
-  vr := ClassCloneData(Self);
+  vr := GetClassCloneData(Self);
   for i := 0 to vr.Rows.ColumnCount - 1 do with vr.Rows do begin
     colname := ColumnName(i);
     if IdemPropNameU(colname,'ID') then
