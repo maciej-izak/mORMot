@@ -48,13 +48,31 @@ type
   protected
     fFields: TVariantDynArray;
     class procedure InternalRegisterCustomProperties(Props: TSQLRecordProperties); override;
+    class function GetVMTData: PSQLVirtualRecordVMT;
   public
     class function ClassCreate(const aRows: ISQLDBRows): TSQLVirtualRecordClass;
     class procedure ClassFree;
+    constructor Create; override;
   end;
 
   TSQLVirtualPropInfo = class(TSQLPropInfo)
+  public
+    procedure SetValue(Instance: TObject; Value: PUTF8Char; wasString: boolean); override;
+    procedure GetValueVar(Instance: TObject; ToSQL: boolean;
+      var result: RawUTF8; wasSQLString: PBoolean); override;
   end;
+
+{ TSQLVirtualPropInfo }
+
+procedure TSQLVirtualPropInfo.GetValueVar(Instance: TObject; ToSQL: boolean;
+  var result: RawUTF8; wasSQLString: PBoolean);
+begin
+end;
+
+procedure TSQLVirtualPropInfo.SetValue(Instance: TObject; Value: PUTF8Char;
+  wasString: boolean);
+begin
+end;
 
 { TSynClassInterceptor }
 
@@ -71,8 +89,19 @@ end;
 class procedure TSQLVirtualRecord.ClassFree;
 begin
   GarbageCollectorFreeAndNilRemove(Pointer(PtrInt(self)+vmtAutoTable)^);
-  PSQLVirtualRecordVMT(GetClassCloneData(self))^.Rows := nil;
+  GetVMTData^.Rows := nil;
   FreeClassClone(self);
+end;
+
+constructor TSQLVirtualRecord.Create;
+begin
+  SetLength(fFields, GetVMTData^.Rows.ColumnCount);
+  inherited;
+end;
+
+class function TSQLVirtualRecord.GetVMTData: PSQLVirtualRecordVMT;
+begin
+  Result := PSQLVirtualRecordVMT(GetClassCloneData(self));
 end;
 
 const
