@@ -66,12 +66,37 @@ type
 
 procedure TSQLVirtualPropInfo.GetValueVar(Instance: TObject; ToSQL: boolean;
   var result: RawUTF8; wasSQLString: PBoolean);
+var wasString: boolean;
+    value: Variant;
 begin
+  SetVariantByValue(TSQLVirtualRecord(Instance).fFields[fPropertyIndex], value);
+  VariantToUTF8(value,result,wasString);
+  if wasSQLString<>nil then
+    // from SQL point of view, variant columns are TEXT or NULL
+    wasSQLString^ := not VarIsEmptyOrNull(value);
 end;
 
 procedure TSQLVirtualPropInfo.SetValue(Instance: TObject; Value: PUTF8Char;
   wasString: boolean);
+var tmp: TSynTempBuffer;
+    V: Variant;
+    ValueLen: integer;
 begin
+  ValueLen := StrLen(Value);
+  if ValueLen>0 then begin
+    if wasString and (GotoNextNotSpace(Value)^ in ['{','[']) then
+      wasString := false; // allow to create a TDocVariant stored as DB text
+    tmp.Init(Value,ValueLen);
+    try
+      GetVariantFromJSON(tmp.buf,wasString,V,@JSON_OPTIONS[true]);
+      TSQLVirtualRecord(Instance).fFields[fPropertyIndex] := V;
+    finally
+      tmp.Done;
+    end;
+  end else begin
+    TVarData(V).VType := varNull; // TEXT or NULL: see GetValueVar()
+    TSQLVirtualRecord(Instance).fFields[fPropertyIndex] := V;
+  end;
 end;
 
 { TSynClassInterceptor }
@@ -139,6 +164,18 @@ begin
   vr^.Rows := aRows;
 end;
 
+procedure TestClass(r: TSQLRecord);
+var
+  i: integer;
+begin
+  for i := 0 to r.RecordProps.Fields.Count-1 do begin
+    with r.RecordProps.Fields.Items[i] do begin
+      SetValue(r, '899', false);
+      WriteLn(Name, ' = ', GetValue(r, false));
+    end;
+  end;
+end;
+
 var
   rows: ISQLDBRows;
   r: TSQLVirtualRecord;
@@ -155,6 +192,7 @@ begin
   rows := Props.ExecuteInlined('select * from SampleRecord', true);
   rc := TSQLVirtualRecord.ClassCreate(rows);
   r := rc.Create;
+  TestClass(r);
   r.Free;
   rc.ClassFree;
 
