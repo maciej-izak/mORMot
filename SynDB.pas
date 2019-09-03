@@ -6466,7 +6466,7 @@ begin
     i := CurrentThreadConnectionIndex;
     if i>=0 then begin // do nothing if this thread has no active connection
       fConnectionPool.Delete(i); // release thread's TSQLDBConnection instance
-      if i=fLatestConnectionRetrievedInPool then
+      if i>=fLatestConnectionRetrievedInPool then
         fLatestConnectionRetrievedInPool := -1;
     end;
   finally
